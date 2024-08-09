@@ -47,10 +47,10 @@ def download_file(file_url):
 def create_connection():
     try:
         connection = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
         if connection.is_connected():
             return connection
@@ -58,11 +58,13 @@ def create_connection():
         print(f"Error: {e}")
         return None
 db_config = {
-    'user': 'root',
-    'password': 'Testimonyalade@2003',
-    'host': 'localhost',
-    'database': 'Escobar_bot',
+    'user': 'Delobots',
+    'password': 'mysqlforbot2024',
+    'host': 'Delobots.mysql.pythonanywhere-services.com',
+    'database': 'Delobots$Escobar_prop',
 }
+
+
 
 def save_or_update_group_buy_number(group_id, number):
     conn = mysql.connector.connect(**db_config)
@@ -292,10 +294,10 @@ def save_emoji_to_db(emoji: str, chat_id: int) -> None:
 def check_group_exists(group_id):
     try:
         for_connect = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
         # Establish a database connection
         
@@ -337,10 +339,10 @@ def fetch_token_address(group_id):
         # Establish a database connection
 
         connection = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
         
         if connection.is_connected():
@@ -379,10 +381,10 @@ def delete_chat_id(chat_id):
     try:
         # Establish the connection
         to_delete = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
 
         if to_delete.is_connected():
@@ -411,10 +413,10 @@ def insert_user(telegram_id,given_address):
     try:
         # Connect to the database
         to_connect = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
 
         if to_connect.is_connected():
@@ -447,10 +449,10 @@ def insert_user(telegram_id,given_address):
 def save_media_to_db(chat_id, media_type, media_content):
     try:
         for_save = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
+            host='Delobots.mysql.pythonanywhere-services.com',
+            user='Delobots',
+            password='mysqlforbot2024',
+            database='Delobots$Escobar_prop'
         )
 
         if for_save.is_connected():
