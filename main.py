@@ -845,7 +845,7 @@ base_again_web3 = Web3(Web3.HTTPProvider(base_again_url))
 base_rpc_url = 'https://mainnet.base.org'
 base_web3 = Web3(Web3.HTTPProvider(base_rpc_url))
 
-# Check connection
+# Check connection  
 if web3.is_connected():
     print("Connected to Ethereum network")  #probably write all the code her to avoid errors
 else:
@@ -2434,7 +2434,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         print('user already exist')
                         await context.bot.send_message(chat_id=chat_id, text=f'❗️Bot already in use in this group for token {sol_db_token}',parse_mode='HTML',disable_web_page_preview=True)
                     else:
-                        sol_name,sol_symbol = (solana_address,META_DATA_PROGRAM)
+                        sol_name,sol_symbol = get_token_info(solana_address,META_DATA_PROGRAM)
                         sol_done=insert_user(chat_id, solana_address)
                         sol_db_token = fetch_token_address(chat_id)
                         sol_respnse = (
