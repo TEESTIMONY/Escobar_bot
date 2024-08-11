@@ -1797,7 +1797,7 @@ def get_transaction_info(signature,token_address,chat_id):
                     f"💰 MarketCap: ${format_number(MCAP)}\n💧Liquidity: {format_number(liquidity)} WSOL (${format_number(POOL)})\n\n"
                     f"<a href='https://raydium.io/swap/?inputCurrency=sol&outputCurrency={token_address}'>Buy</a> ⋙ <a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
                 )
-                print(ff)
+                # print(ff)
             return MSG
     except Exception as e:
         print('over here',e)
