@@ -1495,7 +1495,7 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
                 message = (
                     f"<b> ✅{name}</b> Buy!\n\n"
                     f"{'🟢'*calc}\n"
-                    f"💵 {round(amount0In * 10**-18,3)} <b>BSC</b>\n"
+                    f"💵 {amount0In * 10**-18} <b>BSC</b>\n"
                     f"🪙{formatted_number} <b>{symbol}</b>\n"
                     f"🔷${usd_value_bought:.2f}\n"
                     f"🧢MKT Cap : ${bsc_formatted_market_cap}\n"
