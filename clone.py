@@ -1856,7 +1856,7 @@ def get_transaction_info(signature,token_address,chat_id):
                 else:
                     MSG = (
                         f"<b> ✅{name}</b> Buy!\n\n"
-                        f"{'🟢'*9}\n"
+                        f"{'🟢'*calc}\n"
                         f"💵 {format_number(SPENT)} <b>SOL</b>\n"
                         f"🪙  {format_number(GOT)} <b>{symbol}</b>\n"
                         f"🔷${format_number(spent_usd)}\n"
