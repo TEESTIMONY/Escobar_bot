@@ -343,7 +343,7 @@ def format_with_unicode(number):
         return str(number)
 
 def get_emoji_from_db(chat_id: int) -> str:
-    conn = mysql.connector.connect(**db_config)
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT emoji FROM emojis
@@ -392,12 +392,7 @@ def save_emoji_to_db(emoji: str, chat_id: int) -> None:
 
 def check_group_exists(group_id):
     try:
-        for_connect = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
+        for_connect = create_connection()
         # Establish a database connection
         
         if for_connect.is_connected():
@@ -437,12 +432,7 @@ def fetch_token_address(group_id):
     try:
         # Establish a database connection
 
-        connection = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
+        connection = create_connection()
         
         if connection.is_connected():
             print("Connected to the database")
@@ -479,12 +469,7 @@ def fetch_token_address(group_id):
 def delete_chat_id(chat_id):
     try:
         # Establish the connection
-        to_delete = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
+        to_delete = create_connection()
 
         if to_delete.is_connected():
             cursor = to_delete.cursor()
@@ -511,12 +496,7 @@ def delete_chat_id(chat_id):
 def insert_user(telegram_id, given_address, pair_address, blockchain):
     try:
         # Connect to the database
-        to_connect = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
+        to_connect = create_connection()
 
         if to_connect.is_connected():
             print("Connected to the database")
@@ -548,13 +528,7 @@ def insert_user(telegram_id, given_address, pair_address, blockchain):
 # Example usage
 def save_media_to_db(chat_id, media_type, media_content):
     try:
-        for_save = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
-
+        for_save =create_connection()
         if for_save.is_connected():
             cursor = for_save.cursor()
             sql_insert_query = """INSERT INTO media (chat_id, media_type, media) VALUES (%s, %s, %s)"""
@@ -569,7 +543,7 @@ def save_media_to_db(chat_id, media_type, media_content):
             for_save.close()
 
 def fetch_media_from_db(chat_id: int):
-    conn = mysql.connector.connect(**db_config)
+    conn =create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT file_id, file_type FROM media WHERE chat_id = %s ORDER BY created_at DESC LIMIT 1", (chat_id,))
     result = cursor.fetchone()
@@ -983,8 +957,6 @@ def get_ton_details(token_address):
     native_price = resp['priceNative']
 
     return pair_address , name ,symbol ,price_usd , mkt_cap,resp,native_price
-
-
 async def hunt_ton(token_address,context,chat_id,stop_event):
     try:
         previous_response = None
