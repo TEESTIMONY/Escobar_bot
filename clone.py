@@ -24,8 +24,11 @@ import base58
 import struct
 import traceback
 import io
+from dotenv import load_dotenv
+import os 
 
 
+load_dotenv()
 stop_events = {}
 CG = CoinGeckoAPI()
 CLIENT = Client("https://api.mainnet-beta.solana.com")
@@ -33,12 +36,9 @@ RAYDIUM_POOL = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 RAYDIUM_AUTHORITY = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
 META_DATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 WRAPPED_SOL = "So11111111111111111111111111111111111111112"
-
 SEND_MEDIA = 'SEND_MEDIA'
 
-
-with open('passsss.txt','r') as f:
-    PASSWORD=f.read()
+PASSWORD =  os.getenv('PASSWORD_')
 # Database connection setup
 db_config = {
     'user': 'root',
@@ -62,7 +62,6 @@ def create_tables():
     if conn:
         try:
             cursor = conn.cursor()
-
             # Create `group_numbers` table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS group_numbers (
@@ -356,6 +355,22 @@ def get_emoji_from_db(chat_id: int) -> str:
     if result:
         return result[0]
     return None
+
+def chat_id_exists(chat_id):
+    conn = create_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM chat_info WHERE chat_id = %s", (chat_id,))
+            result = cursor.fetchone()
+            return result is not None
+        except Error as e:
+            print(f"Error: {e}")
+            return False
+        finally:
+            cursor.close()
+            conn.close()
+    return False
 
 
 def save_or_update_media_in_db(file_id: str, file_type: str, chat_id: int):
@@ -975,8 +990,8 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
             if response != previous_response:
                 if result['assetIn']['type'] == 'native':
                     print('BUY!!')
-                    print(result)
-                    print(response)
+                    # print(result)
+                    # print(response)
                     print('')
                     previous_response = response
                     ton_bought = float(result['amountIn'])*10**-9
@@ -1001,8 +1016,8 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
                             f"<b>✅{name}</b> BUY!\n\n"
                             f"{emoji*calc}\n"
                             f"💵{round(float(ton_bought),2)}<b>TON</b>\n"
-                            f"🪙{round(float(token_bought),2)} <b>{symbol}</b>\n"
-                            f"🔷${round(usd_value_bought,2)}\n"
+                            f"🪙{round(float(token_bought),5)} <b>{symbol}</b>\n"
+                            f"🔷${round(usd_value_bought,5)}\n"
                             f"🧢MKT Cap : ${format_number(mktcap)}\n\n"
                             f"🦎{chart} 🔷{trend}"
                         )
@@ -1011,7 +1026,7 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
                             f"<b>✅{name}</b> BUY!\n\n"
                             f"{'🟢'*calc}\n"
                             f"💵{float(ton_bought)*10**-9}<b>TON</b>\n"
-                            f"🪙{round(float(token_bought)*10**-9,2)} <b>{symbol}</b>\n"
+                            f"🪙{round(float(token_bought)*10**-9,5)} <b>{symbol}</b>\n"
                             f"🔷${usd_value_bought}\n"
                             f"🧢MKT Cap : ${format_number(mktcap)}\n\n"
                             f"🦎{chart} 🔷{trend}"
@@ -1046,9 +1061,6 @@ def start_ton_logging(token_address,context,chat_id):
         hunt_ton(token_address,context,chat_id,stop_event),
         asyncio.get_event_loop()
     )
-
-
-
 
 # Function to get pair address
 def get_pair_address(token_address):
@@ -1093,7 +1105,6 @@ def get_weth_price_in_usd():
     data = response.json()
     return data['weth']['usd']
 
-
 def get_token_price(token_address,pair_address):
     chainlink_contract = web3.eth.contract(address=Web3.to_checksum_address(ETH_USD_ADDRESS), abi=ETH_USD_ABI)
     pair_contract = web3.eth.contract(address=pair_address, abi=UNISWAP_PAIR_ABI)
@@ -1120,7 +1131,6 @@ def get_token_price(token_address,pair_address):
 
     # Adjust price to USD with correct decimal precision
     return token_price*eth_usd_price
-
 BASE_CHAINLINK_PRICE_FEED_ABI = [
     {
         "constant": True,
@@ -1330,7 +1340,6 @@ BASE_PAIR_ABI = [
     }
 ]
 
-
 def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id):
     try:
         args = event['args']
@@ -1341,15 +1350,14 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
         amount0_out = args['amount0Out']
         amount1_out = args['amount1Out']
 
-        if (amount0_out > amount0_in) and (amount1_out <= amount1_in):
+        if (amount0_out < amount0_in) and (amount1_out >= amount1_in):
             contract = base_web3.eth.contract(address=base_addr, abi=BASE_CONTRACT_ABI)
-
+            print('buy',amount0_in)
+            print('buy',amount1_out)
             # Get total supply of the token
             total_supply = contract.functions.totalSupply().call()
-
             # Define the burn address (commonly used burn address)
             burn_address = '0x0000000000000000000000000000000000000000'
-
             # Get burned tokens (balance of the burn address)
             burned_tokens = contract.functions.balanceOf(burn_address).call()
 
@@ -1374,18 +1382,18 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                     return f"{market_cap:.2f}"
             formatted_market_cap = format_market_cap(MKT_base)
 
-            usd_value_bought= float(price) * (float(amount0_out)/10**18)
+            usd_value_bought= float(price) * (float(amount1_out)/10**18)
             dec = int(decimal)
             action = "Signal detected:"
             trend_url=f"https://t.me/BSCTRENDING/5431871"
             chart_url=f"https://dexscreener.com/base/{base_pair}"
             trend=f"<a href='{trend_url}'>Trending</a>"
             chart=f'<a href="{chart_url}">Chart</a>'
-            number = amount1_in * 10**-18
+            number = amount0_in * 10**-18
             # ew_weth =f"{number:.20f}"
             emoji = get_emoji_from_db(chat_id)
             buy_step_number = retrieve_group_number(chat_id)
-            gr = amount0_out * 10**-dec
+            gr = amount1_out * 10**-dec
             useage = format_with_unicode(gr)
             use_weth = format_with_unicode(number)
             if buy_step_number == None:
@@ -1429,9 +1437,9 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
     except Exception as e:
         print(e)
 
-async def base_log_loop(base_event_filter, poll_interval,context, chat_id,decimal,name,symbol,base_addr,base_pair):
+async def base_log_loop(base_event_filter, poll_interval,context, chat_id,decimal,name,symbol,base_addr,base_pair,stop_event):
     try:
-        while True:
+        while not stop_event.is_set():
             for base_event in base_event_filter.get_new_entries():
                 message=handle_base_swap_event(base_event,decimal,name,symbol,base_addr,base_pair,chat_id)
                 if message:
@@ -1454,11 +1462,10 @@ async def base_log_loop(base_event_filter, poll_interval,context, chat_id,decima
 def base_start_logging(base_event_filter,poll_interval,context,chat_id,decimal,name,symbol,base_addr,base_pair):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
-
     stop_event = stop_events[chat_id]
     stop_event.clear()
     asyncio.run_coroutine_threadsafe(
-        base_log_loop(base_event_filter, poll_interval, context, chat_id,decimal,name,symbol,base_addr,base_pair),
+        base_log_loop(base_event_filter, poll_interval, context, chat_id,decimal,name,symbol,base_addr,base_pair,stop_event),
         asyncio.get_event_loop()
     )
 
@@ -1630,28 +1637,32 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
             else:
                 buuy = buy_step_number
             calc = int(usd_value_bought/buuy)
-            if emoji:
-                message = (
-                    f"<b> ✅{name}</b> Buy!\n\n"
-                    f"{emoji*calc}\n"
-                    f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
-                    f"🪙{(formatted_number)} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"🧢MKT Cap : ${formatted_market_cap}\n\n"
-                    f"🦎{chart} 🔷{trend}"
-                )
-                return message
+
+            if chat_id_exists(chat_id):
+                if emoji:
+                    message = (
+                        f"<b> ✅{name}</b> Buy!\n\n"
+                        f"{emoji*calc}\n"
+                        f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
+                        f"🪙{(formatted_number)} <b>{symbol}</b>\n"
+                        f"🔷${usd_value_bought:.2f}\n"
+                        f"🧢MKT Cap : ${formatted_market_cap}\n\n"
+                        f"🦎{chart} 🔷{trend}"
+                    )
+                    return message
+                else:
+                    message = (
+                        f"<b> ✅{name}</b> Buy!\n\n"
+                        f"{'🟢'*calc}\n"
+                        f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
+                        f"🪙{(formatted_number)} <b>{symbol}</b>\n"
+                        f"🔷${usd_value_bought:.2f}\n"
+                        f"MKT Cap : ${formatted_market_cap}\n\n"
+                        f"🦎{chart} 🔷{trend}"
+                    )
+                    return message
             else:
-                message = (
-                    f"<b> ✅{name}</b> Buy!\n\n"
-                    f"{'🟢'*calc}\n"
-                    f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
-                    f"🪙{(formatted_number)} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"MKT Cap : ${formatted_market_cap}\n\n"
-                    f"🦎{chart} 🔷{trend}"
-                )
-                return message
+                print('i think the token has been removed')
         else:
             pass  # Not a buy event, so return None
     except Exception as e:
@@ -2255,10 +2266,6 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         print('handles differently')
-
-
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
@@ -2589,10 +2596,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
-
 def main():
     create_tables()
-    app = ApplicationBuilder().token('7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8').build()
+    token_key = os.getenv('TOKEN_KEY')
+    print(token_key)
+    app = ApplicationBuilder().token(token_key).build()
     #========= Handlers =============#
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
