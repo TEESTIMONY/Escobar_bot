@@ -23,6 +23,8 @@ from typing import List, Union
 import base58
 import struct
 import traceback
+import io
+
 
 stop_events = {}
 CG = CoinGeckoAPI()
@@ -33,12 +35,93 @@ META_DATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 
 SEND_MEDIA = 'SEND_MEDIA'
-# Enable logging
+
+
 with open('passsss.txt','r') as f:
     PASSWORD=f.read()
-import mysql.connector
-from mysql.connector import Error
-import io
+# Database connection setup
+db_config = {
+    'user': 'root',
+    'password': PASSWORD,
+    'host': 'localhost',
+    'database': 'Escobar_bot',
+}
+# Function to create a database connection
+def create_connection():
+    try:
+        connection = mysql.connector.connect(**db_config)
+        if connection.is_connected():
+            return connection
+    except Error as e:
+        print(f"Error: {e}")
+        return None
+
+# Function to create necessary tables if they don't exist
+def create_tables():
+    conn = create_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+
+            # Create `group_numbers` table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS group_numbers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_id BIGINT NOT NULL,
+                    number INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_group (group_id)
+                )
+            """)
+
+            # Create `media` table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS media (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    file_id VARCHAR(255) NOT NULL,
+                    file_type VARCHAR(50) NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_chat (chat_id)
+
+                )
+            """)
+
+            # Create `emojis` table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS emojis (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    emoji VARCHAR(50) NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_chat (chat_id)
+                    
+                )
+            """)
+
+            # Create `chat_info` table with UNIQUE constraint on `chat_id`
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_info (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    chat_id BIGINT NOT NULL,
+                    token_address VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    pair_address VARCHAR(255),
+                    blockchain VARCHAR(50),
+                    UNIQUE KEY unique_chat (chat_id)
+                )
+            """)
+
+            conn.commit()
+            print("Tables created successfully or already exist.")
+        except Error as e:
+            print(f"Error: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+# Call the function to create tables
+# Enable logging
 def download_file(file_url):
     response = requests.get(file_url)
     if response.status_code == 200:
@@ -46,28 +129,8 @@ def download_file(file_url):
     else:
         raise Exception("Failed to download file")
 
-def create_connection():
-    try:
-        connection = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
-        if connection.is_connected():
-            return connection
-    except Error as e:
-        print(f"Error: {e}")
-        return None
-db_config = {
-    'user': 'root',
-    'password': 'Testimonyalade@2003',
-    'host': 'localhost',
-    'database': 'Escobar_bot',
-}
-
 def save_or_update_group_buy_number(group_id, number):
-    conn = mysql.connector.connect(**db_config)
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO group_numbers (group_id, number)
@@ -82,12 +145,7 @@ def save_or_update_group_buy_number(group_id, number):
 def fetch_pair_address_and_blockchain_for_group(chat_id):
     try:
         # Connect to the database
-        to_connect = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password=PASSWORD,
-            database='Escobar_bot'
-        )
+        to_connect = create_connection()
 
         if to_connect.is_connected():
             print("Connected to the database")
@@ -121,7 +179,7 @@ def fetch_pair_address_and_blockchain_for_group(chat_id):
             to_connect.close()
             print("Database connection closed.")
 def retrieve_group_number(group_id):
-    conn = mysql.connector.connect(**db_config)
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT number FROM group_numbers WHERE group_id = %s", (group_id,))
     result = cursor.fetchone()
@@ -1283,9 +1341,6 @@ CHAINLINK_BNB_USD_ADDRESS = Web3.to_checksum_address('0x0567F2323251f0Aab15c8DfB
 
 # Create Chainlink contract instance
 bsc_chainlink_contract = bsc_web3.eth.contract(address=CHAINLINK_BNB_USD_ADDRESS, abi=CHAINLINK_ABI)
-
-
-
 ##base
 BASE_PAIR_ABI = [
     {
@@ -1347,7 +1402,7 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                     return f"{market_cap:.2f}"
             formatted_market_cap = format_market_cap(MKT_base)
 
-            usd_value_bought= float(price) * (float(amount0_out)*10**-18)
+            usd_value_bought= float(price) * (float(amount0_out)/10**18)
             dec = int(decimal)
             action = "Signal detected:"
             trend_url=f"https://t.me/BSCTRENDING/5431871"
@@ -1367,10 +1422,13 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                 buuy = buy_step_number
             calc = int(usd_value_bought/buuy)
             # print(type(usd_value_bought))
-            if usd_value_bought <= 0.00:
-                usd_value_bought = '<0.01'
+            if usd_value_bought < 0.01:
+                print('true')
+                usd_value_bought = '⬇️0.01'
             else:
+                print('no')
                 usd_value_bought = usd_value_bought
+            print('val',usd_value_bought)
 
             if emoji:
                 message = (
@@ -1378,27 +1436,24 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                     f"{emoji*calc}\n"
                     f"💵 {use_weth} <b>WETH</b>\n"
                     f"🪙{useage} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"🧢MKT Cap : ${formatted_market_cap}\n"
+                    f"🔷${usd_value_bought}\n"
+                    f"🧢MKT Cap : ${formatted_market_cap}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
-            
             else:
                 message = (
                     f"<b> ✅{name}</b> Buy!\n\n"
-                    f"🟢🟢🟢🟢🟢🟢🟢🟢🟢\n"
+                    f"{'🟢'*calc}\n"
                     f"💵 {use_weth} <b>WETH</b>\n"
                     f"🪙{useage} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"🧢MKT Cap : ${formatted_market_cap}\n"
+                    f"🔷${usd_value_bought}\n"
+                    f"🧢MKT Cap : ${formatted_market_cap}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
-
         else:
             pass
-
     except Exception as e:
         print(e)
 
@@ -2223,7 +2278,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print('ghhhhh')
         except Exception as e:
             print('An error occured please type /settings to send media')
-            await context.bot.send_message(chat_id=chat_id, text='An error occured please type /settings to send media',parse_mode='HTML',disable_web_page_preview=True)
+            # await context.bot.send_message(chat_id=chat_id, text='An error occured please type /settings to send media',parse_mode='HTML',disable_web_page_preview=True)
 
 
     else:
@@ -2419,6 +2474,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
                     if base_pair_address == '0x0000000000000000000000000000000000000000':
                         print("No pair exists for the given token address and Base.")
+                        await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
+
+
                     else:
                         base_token_address =context.user_data['message']
                         print(f"The pair address for the given token and Base is: {base_pair_address}")
@@ -2510,7 +2568,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     print('for sol',e)
                     context.user_data.clear()
 
-
             elif context.user_data['state'] == FOR_TON:
                 context.user_data['message'] = message_text
                 try:
@@ -2537,7 +2594,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             await context.bot.send_message(chat_id=chat_id, text=ton_respnse,parse_mode='HTML',disable_web_page_preview=True)
                             btn2= InlineKeyboardButton("🟢 BuyBot Settings", callback_data='buybot_settings')
                             btn9= InlineKeyboardButton("🔴 Close menu", callback_data='close_menu')
-
                             row2= [btn2]
                             row9= [btn9]
                             reply_markup_pair = InlineKeyboardMarkup([row2,row9])
@@ -2563,9 +2619,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     return ConversationHandler.END
 
 def main():
+    create_tables()
     app = ApplicationBuilder().token('7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8').build()
     #========= Handlers =============#
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
     app.add_handler(CommandHandler('remove', remove))
@@ -2579,10 +2635,8 @@ def main():
     app.add_handler(CallbackQueryHandler(another_query,pattern='^(gif_video|buy_emoji|buy_step|back_group_settings)$'))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.ANIMATION, handle_media))
-
-
-    
-
     app.run_polling()
+
+
 if __name__ == '__main__':
     main()
