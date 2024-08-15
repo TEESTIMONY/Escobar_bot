@@ -1427,7 +1427,7 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                 usd_value_bought = '⬇️0.01'
             else:
                 print('no')
-                usd_value_bought = usd_value_bought
+                usd_value_bought = round(usd_value_bought,3)
             print('val',usd_value_bought)
 
             if emoji:
