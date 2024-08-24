@@ -20,13 +20,17 @@ from solders.signature import Signature #type:ignore
 from pycoingecko import CoinGeckoAPI
 from solana.rpc.types import MemcmpOpts
 from typing import List, Union
+# from solana_stuff import pump_fun
+from requests.exceptions import RequestException, Timeout, ConnectionError
 import base58
 import struct
 import traceback
 import io
 from dotenv import load_dotenv
 import os 
-
+import json
+from telegram.error import TimedOut
+from requests.exceptions import ConnectTimeout
 
 load_dotenv()
 stop_events = {}
@@ -918,7 +922,7 @@ WBNB_ADDRESS = Web3.to_checksum_address('0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc0
 ETH_USD_ADDRESS = Web3.to_checksum_address('0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419')
 # WETH token address on Uniswap V2
 WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-CHOOSING,FOR_ETH,FOR_BSC,FOR_BASE,FOR_TON,FOR_SOL,SEND_MEDIA = range(7)
+CHOOSING,FOR_ETH,FOR_BSC,FOR_BASE,FOR_TON,FOR_PUMP,SEND_MEDIA,FOR_MOON,FOR_PINK = range(9)
 def is_valid_ethereum_address(address: str)-> bool:
     return re.match(r'^0x[a-fA-F0-9]{40}$', address) is not None
 
@@ -1437,6 +1441,7 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
     except Exception as e:
         print(e)
 
+
 async def base_log_loop(base_event_filter, poll_interval,context, chat_id,decimal,name,symbol,base_addr,base_pair,stop_event):
     try:
         while not stop_event.is_set():
@@ -1571,7 +1576,7 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
                 message = (
                     f"<b> ✅{name}</b> Buy!\n\n"
                     f"{'🟢'*calc}\n"
-                    f"💵 {round(amount0In * 10**-18,3)} <b>BSC</b>\n"
+                    f"💵 {round(amount0In * 10**-18)} <b>BSC</b>\n"
                     f"🪙{formatted_number} <b>{symbol}</b>\n"
                     f"🔷${usd_value_bought:.2f}\n"
                     f"🧢MKT Cap : ${bsc_formatted_market_cap}\n"
@@ -1951,7 +1956,6 @@ def sol_start_logging(sol_address,chat_id,context):
         asyncio.get_event_loop()
     )
 
-
 def bsc_start_logging(swap_event_filter,poll_interval,context,chat_id,bsc_addr,bsc_pair,name,symbol,decimal):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
@@ -1970,7 +1974,462 @@ def start_logging(event_filter, poll_interval, context, chat_id,decimal,name,sym
         log_loop(event_filter, poll_interval, context, chat_id,decimal,name,symbol,addr,pair,stop_event),
         asyncio.get_event_loop()
     )
+
+###
+##
+#
+#
+#
+
+
+async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol):
+    try:
+        prev_res = None
+        
+
+        while not stop_event.is_set():
+            url = "https://api.mainnet-beta.solana.com"
+            try:
+                headers = {
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getSignaturesForAddress",
+                    "params": [
+                        token_address,
+                        {"limit": 1}
+                    ]
+                }
+                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                signature = response.json()['result'][0]['signature']
+
+                if signature != prev_res:
+                    payload2 = {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "getTransaction",
+                        "params": [
+                            signature,
+                            {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}
+                        ]
+                    }
+
+                    try:
+                        response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
+                        res_data = response2.json()
+                        messages = res_data['result']['meta']['logMessages']
+
+                        if 'Program log: Instruction: Swap' in messages:
+                            await context.bot.send_message(chat_id=chat_id, text="Detected a Swap transaction!")
+
+                        elif "Program log: Instruction: Buy" in messages:
+                            data = res_data['result']['meta']['innerInstructions'][0]['instructions'][:7]
+                            actual_authority = []
+                            token_amount = None
+                            solana_amount = None
+
+                            for instance in data:
+                                try:
+                                    info = instance["parsed"]["info"]
+                                    authority = info.get("authority")
+                                    if authority:
+                                        actual_authority.append(authority)
+                                    if 'authority' in info:
+                                        token_amount = float(info['amount']) * 10**-6
+                                except KeyError:
+                                    continue
+
+                            for i in data:
+                                try:
+                                    info = i["parsed"]["info"]
+                                    if info['destination'] == actual_authority[-1]:
+                                        solana_amount = info['lamports'] * 10**-9
+                                except KeyError:
+                                    continue
+                            chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                            trend=f"<a href='{trend_url}'>Trending</a>"
+                            if token_amount and solana_amount:
+                                emoji = get_emoji_from_db(chat_id)
+                                buy_step_number = retrieve_group_number(chat_id)
+                                if buy_step_number == None:
+                                    buuy = 10
+                                else:
+                                    buuy = buy_step_number
+                                # calc = int(usd_value_bought/buuy)
+
+                                if chat_id_exists(chat_id):
+                                    if emoji:
+                                        message = (
+                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                            f"{emoji*9}\n"
+                                            f"💵 {format_with_unicode(solana_amount)} <b>SOL</b>\n"
+                                            f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
+                                            # f"🔷${usd_value_bought:.2f}\n"
+                                            # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                            f"🦎{chart} 🔷{trend}"
+                                        )
+                                    else:
+                                        message = (
+                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                            f"{'🟢'*9}\n"
+                                            f"💵 {format_with_unicode(solana_amount)} <b>SOL</b>\n"
+                                            f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
+                                            # f"🔷${usd_value_bought:.2f}\n"
+                                            # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                            f"🦎{chart} 🔷{trend}"
+                                        )
+
+                                
+                                # message = (
+                                #     f"Detected a Buy transaction!\n\n"
+                                #     f"Token Amount: {token_amount}\n"
+                                #     f"Solana Amount: {solana_amount}"
+                                # )
+                                await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                            else:
+                                print('failed to parse')
+
+                        else:
+                            # await context.bot.send_message(chat_id=chat_id, text="Detected a Sell or Failed transaction.")
+                            print('Detected a Sell or Failed transaction.')
+
+                    except IndexError:
+                        print('sell')
+                    
+                    prev_res = signature
+                else:
+                    print('No new transactions detected.')  # Optional: Remove or replace with logging if needed
+            except (ConnectionError, Timeout) as e:
+                print(f"Restartig ..... ")
+                await asyncio.sleep(5)  # Brief pause before retrying
+                pumpfun(token_address, interval, context, chat_id,stop_event, name,symbol)
+                
+            except KeyError:
+                print('restarting .....')
+                await asyncio.sleep(5)
+                pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol)
+
+            except RequestException as e:
+                print(f"Restartig ..... ")
+                await asyncio.sleep(5)  # Brief pause before retrying
+                pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol)
+            except TimedOut as e:
+                print(f"Restarting ..... ")
+                await asyncio.sleep(5)  # Brief pause before retrying
+                pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol)
+
+            await asyncio.sleep(interval)
+    except Exception as e:
+        print('pump',e)
+
+def start_sol_monitoring(token_address, interval, context, chat_id,name,symbol):
+    if chat_id not in stop_events:
+        stop_events[chat_id] = asyncio.Event()
+    stop_event = stop_events[chat_id]
+    stop_event.clear()
+    loop = asyncio.get_event_loop()
+    asyncio.run_coroutine_threadsafe(
+        pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol),
+        loop
+    )
+
+#
+#
+#
 # Define a handler for when the bot is added to a group
+##
+#
+
+
+async def pinky(token_address, context, chat_id,name,symbol,stop_event):
+    previous_resp = None
+    while not stop_event.is_set():
+        url = "https://api.mainnet-beta.solana.com"
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [
+                token_address,
+                {
+                    "limit": 1
+                }
+            ]
+        }
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        signature = response.json()['result'][0]['signature']
+        payload2 = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTransaction",
+            "params": [
+                signature, #change this to signatur comming from step one 
+                {
+                    "encoding": "jsonParsed",
+                    "maxSupportedTransactionVersion": 0
+                }
+            ]
+        }
+        try:
+            if previous_resp != signature:
+            
+                response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
+                res_data = response2.json()
+                messages = res_data['result']['meta']['logMessages']
+                parsed = res_data['result']['meta']['innerInstructions'][0]['instructions'][1:]
+                # print(messages)
+                if 'Program log: Instruction: Swap' in messages:
+                    # print('filtered only swap now')
+                    new =res_data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
+                    with open('g.json','w')as file:
+                        json.dump(new,file,indent= 4)
+                    # print(parsed[0]['parsed']['info']['tokenAmount'])
+                    # print(parsed[1]['parsed']['info']['tokenAmount'])
+                elif "Program log: Instruction: Buy" in messages:
+                    data = res_data['result']['meta']['innerInstructions'][2]['instructions']
+                    actual_authority = []
+                    for instance in data:
+                        try:
+                            info = instance["parsed"]["info"]
+                            authority = instance["parsed"]["info"]["authority"]
+                            # print(f"Authority: {authority}")
+                            actual_authority.append(authority)
+                            # print(info)
+                            if 'authority' in info:
+                                token=float(info['amount'])*10**-6
+                            else:
+                                pass
+                            decimal = res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                        except KeyError:
+                            continue
+                    for i in data:
+                        # print(info['destination'])
+                        try:
+                            info = i["parsed"]["info"]
+                            if info['destination'] == actual_authority[-1]:
+                                sol_amount =info['lamports']*10**-9
+                            else:
+                                pass
+                        except KeyError:
+                            continue
+                    chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                    trend_url=f"https://t.me/BSCTRENDING/5431871"
+                    trend=f"<a href='{trend_url}'>Trending</a>"
+                    if token and sol_amount:
+                        emoji = get_emoji_from_db(chat_id)
+                        buy_step_number = retrieve_group_number(chat_id)
+                        if buy_step_number == None:
+                            buuy = 10
+                        else:
+                            buuy = buy_step_number
+                        # calc = int(usd_value_bought/buuy)
+
+                        if chat_id_exists(chat_id):
+                            if emoji:
+                                message = (
+                                    f"<b> ✅{name}</b> Buy!\n\n"
+                                    f"{emoji*9}\n"
+                                    f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
+                                    f"🪙{format_number(token)} <b>{symbol}</b>\n"
+                                    # f"🔷${usd_value_bought:.2f}\n"
+                                    # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                    f"🦎{chart} 🔷{trend}"
+                                )
+                            else:
+                                message = (
+                                    f"<b> ✅{name}</b> Buy!\n\n"
+                                    f"{'🟢'*9}\n"
+                                    f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
+                                    f"🪙{format_number(token)} <b>{symbol}</b>\n"
+                                    # f"🔷${usd_value_bought:.2f}\n"
+                                    # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                    f"🦎{chart} 🔷{trend}"
+                                )
+                        await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+
+                    # print(data)
+                else:
+                    print('i think is a failed transaction or sell ')
+            else:
+                print('already there')
+                
+            previous_resp = signature
+            await asyncio.sleep(5)  # Adjust the interval as needed
+        except IndexError:
+                print('sell')
+        except KeyError:
+            print('restarting ..... ')
+            await asyncio.sleep(5)  # Adjust the interval as needed
+            pinky(token_address,context, chat_id,name,symbol,stop_event)
+        except Exception as e:
+            print(e)
+
+def start_pinky(token_address, context, chat_id,name,symbol):
+    if chat_id not in stop_events:
+        stop_events[chat_id] = asyncio.Event()
+    stop_event = stop_events[chat_id]
+    stop_event.clear()
+    asyncio.run_coroutine_threadsafe(
+        pinky(token_address, context, chat_id,name,symbol,stop_event),
+        asyncio.get_event_loop()
+    )
+#
+#
+async def moonshot(token_address, context, chat_id,name , symbol,stop_event):
+    print('moonshot')
+    prev_signature = None
+    while not stop_event.is_set():
+        url = "https://api.mainnet-beta.solana.com"
+
+        try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getSignaturesForAddress",
+                "params": [
+                    token_address,
+                    {
+                        "limit": 1
+                    }
+                ]
+            }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            signature = response.json()['result'][0]['signature']
+            
+            if signature != prev_signature:
+                payload2 = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getTransaction",
+                    "params": [
+                        signature,
+                        {
+                            "encoding": "jsonParsed",
+                            "maxSupportedTransactionVersion": 0
+                        }
+                    ]
+                }
+
+                try:
+                    response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
+                    data = response2.json()
+                    messages = data['result']['meta']['logMessages']
+                    parsed = data['result']['meta']['innerInstructions'][0]['instructions'][1:]
+
+                    if 'Program log: Instruction: Swap' in messages:
+                        new = data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
+
+                    elif "Program log: Instruction: Buy" in messages:
+                        data = data['result']['meta']['innerInstructions'][0]['instructions'][:7]
+                        actual_authority = []
+                        sol_amount = 0
+                        token_amount = 0
+                        decimal = 0
+                        for instance in data:
+                            try:
+                                info = instance["parsed"]["info"]
+                                authority = info.get("authority")
+                                if authority:
+                                    actual_authority.append(authority)
+                                    token_details = info.get("tokenAmount")
+                                    if token_details:
+                                        token_amount = token_details['uiAmount']
+                                        decimal = token_details['decimals']
+                                        
+                            except KeyError:
+                                continue
+
+                        for i in data:
+                            info = i["parsed"]["info"]
+                            try:
+                                if info.get('destination') == actual_authority[-1]:
+                                    lamports = info.get('lamports', 0)
+                                    if lamports:
+                                        sol_amount = lamports * 10 ** -9
+                                        
+                            except KeyError:
+                                continue
+                        # Send the SOL and token amount to the Telegram group
+                        chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                        trend_url=f"https://t.me/BSCTRENDING/5431871"
+                        trend=f"<a href='{trend_url}'>Trending</a>"
+                        if sol_amount or token_amount:
+                            emoji = get_emoji_from_db(chat_id)
+                            buy_step_number = retrieve_group_number(chat_id)
+                            if buy_step_number == None:
+                                buuy = 10
+                            else:
+                                buuy = buy_step_number
+                            # calc = int(usd_value_bought/buuy)
+
+                            if chat_id_exists(chat_id):
+                                if emoji:
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{emoji*9}\n"
+                                        f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
+                                        # f"🔷${usd_value_bought:.2f}\n"
+                                        # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
+                                else:
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{'🟢'*9}\n"
+                                        f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
+                                        # f"🔷${usd_value_bought:.2f}\n"
+                                        # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
+                            await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+
+                    else:
+                        print('I think it is a failed transaction or sell')
+
+                except IndexError:
+                    print('Sell transaction detected')
+                prev_signature = signature
+            else:
+                print('No new transactions')
+
+        except ConnectTimeout:
+            print("Connection timed out, retrying...")
+            await asyncio.sleep(5)  # Wait before retrying
+
+        except KeyError:
+            print('restarting .....')
+            await asyncio.sleep(5)
+            moonshot(token_address,context, chat_id,name , symbol,stop_event)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
+        await asyncio.sleep(5)  # Adjust the interval as needed
+
+# Starting the moonshot function with threading or asyncio coroutine thread-safe method
+def start_moonshot(token_address, context, chat_id,name,symbol):
+    if chat_id not in stop_events:
+        stop_events[chat_id] = asyncio.Event()
+    stop_event = stop_events[chat_id]
+    stop_event.clear()
+    asyncio.run_coroutine_threadsafe(
+        moonshot(token_address, context, chat_id,name,symbol,stop_event),
+        asyncio.get_event_loop()
+    )
+#
+#
 async def bot_added_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.my_chat_member.new_chat_member.status == 'member':
         chat_id = update.my_chat_member.chat.id
@@ -2074,11 +2533,43 @@ async def add_query(update:Update , context:ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text="➡[🔵BASE] Token address?")
         context.user_data['state'] = FOR_BASE
     elif query.data == 'sol':
-        await query.edit_message_text(text="➡[⚡SOL] Token address?")
-        context.user_data['state'] = FOR_SOL
+        keyboard = [
+                [InlineKeyboardButton("🌊Dexes", callback_data='Dex')],
+                [InlineKeyboardButton("🚀🎉PumpFun", callback_data='pumpfun')],
+                [InlineKeyboardButton("🌕🚀Moonshot", callback_data='moonshot')],
+                [InlineKeyboardButton("🎀💸PinkSale", callback_data='pinksale')],
+            ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(text="➡[⚡SOL] Token address?",reply_markup=reply_markup)
+        # context.user_data['state'] = FOR_SOL
     elif query.data =='ton':
         await query.edit_message_text(text="➡[💡TON(📦DeDust)] Pair address?")
         context.user_data['state'] = FOR_TON
+
+async def sol_query(update:Update,context:ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    original_message_id = query.message.message_id
+    await query.answer()
+    if query.data == 'pumpfun':
+        print('pump')
+        await query.edit_message_text(text="➡[🚀🎉PumpFun] Token address?")
+        context.user_data['state'] = FOR_PUMP
+    elif query.data == 'moonshot':
+        await query.edit_message_text(text="➡[🌕🚀Moonshot] Token address?")
+        context.user_data['state'] = FOR_MOON
+
+    elif query.data == 'pinksale':
+        await query.edit_message_text(text="➡[🎀💸PinkSale] Token address?")
+        context.user_data['state'] = FOR_PINK
+
+    elif query.data == 'Dex':
+        await query.edit_message_text(text="➡[🌊Dexes] Coming soon‼️‼️")
+
+
+
+
 
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -2196,6 +2687,7 @@ async def another_query(update:Update,context:ContextTypes.DEFAULT_TYPE):
         original_message_id = query.message.message_id
         if query.data == 'gif_video':
             context.user_data['state'] = SEND_MEDIA
+            context.user_data['awaiting_media'] = True
             print('you clicked gif_video')
             await query.edit_message_text(text="Send me a image/gif")
 
@@ -2238,30 +2730,36 @@ async def handle_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.photo or update.message.animation or update.message.text.startswith("http"):
-        message = update.message
-        chat_id = update.effective_chat.id
-        try:
+        user_data = context.user_data
+        if user_data.get('awaiting_media'):
+            message = update.message
+            chat_id = update.effective_chat.id
+            try:
+                if context.user_data['state'] == SEND_MEDIA:
+                    if message.photo:
+                        file_id = message.photo[-1].file_id  # Get the highest resolution photo
+                        save_or_update_media_in_db(file_id, 'photo', chat_id)
+                        await message.reply_text("Photo receivedgg and saved.")
+                        context.user_data.clear()
+                        user_data['awaiting_media'] = False
 
-            if context.user_data['state'] == SEND_MEDIA:
-                if message.photo:
-                    file_id = message.photo[-1].file_id  # Get the highest resolution photo
-                    save_or_update_media_in_db(file_id, 'photo', chat_id)
-                    await message.reply_text("Photo received and saved.")
-                    context.user_data.clear()
+                    elif message.animation:
+                        file_id = message.document.file_id
+                        save_or_update_media_in_db(file_id, 'gif', chat_id)
+                        await message.reply_text("GIF received and saved.")
+                        context.user_data.clear()
+                        user_data['awaiting_media'] = False
 
-                elif message.animation:
-                    file_id = message.document.file_id
-                    save_or_update_media_in_db(file_id, 'gif', chat_id)
-                    await message.reply_text("GIF received and saved.")
-                    context.user_data.clear()
+                    else:
+                        print('gggggg')
+                        context.user_data.clear()
+                        user_data['awaiting_media'] = False
+
                 else:
-                    print('gggggg')
-
-            else:
-                print('ghhhhh')
-        except Exception as e:
-            print('An error occured please type /settings to send media')
-            # await context.bot.send_message(chat_id=chat_id, text='An error occured please type /settings to send media',parse_mode='HTML',disable_web_page_preview=True)
+                    print('ghhhhh')
+            except Exception as e:
+                print('An error occured please type /settings to send media')
+                # await context.bot.send_message(chat_id=chat_id, text='An error occured please type /settings to send media',parse_mode='HTML',disable_web_page_preview=True)
 
 
     else:
@@ -2504,10 +3002,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 except Exception as e:
                     response ="an error occured"
                     print('for base again',e)
-            elif context.user_data['state'] == FOR_SOL:
+            elif context.user_data['state'] == FOR_PUMP:
                 context.user_data['message'] = message_text 
                 try:
                     solana_address = context.user_data['message']
+                    print(solana_address)
                     get_account_info(solana_address)
                     sol_call= check_group_exists(chat_id)
                     if  sol_call == 'good':
@@ -2538,14 +3037,98 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             '🛠 Settings Menu:',
                             reply_markup=reply_markup_pair
                         )
-                        print('starting sol')
-                        sol_start_logging(solana_address,chat_id,context)
+                    
+                        start_sol_monitoring(solana_address,5,context,chat_id,sol_name,sol_symbol)
                         context.user_data.clear()
 
                 except Exception as e:
                     await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
                     print('for sol',e)
                     context.user_data.clear()
+            elif context.user_data['state'] == FOR_MOON:
+                context.user_data['message'] = message_text 
+                try:
+                    solana_address = context.user_data['message']
+                    print(solana_address)
+                    get_account_info(solana_address)
+                    sol_call= check_group_exists(chat_id)
+                    if  sol_call == 'good':
+                        sol_db_token = fetch_token_address(chat_id)
+                        # sol_block_chain = 'solana'
+                        print('user already exist')
+                        await context.bot.send_message(chat_id=chat_id, text=f'❗️Bot already in use in this group for token {sol_db_token}',parse_mode='HTML',disable_web_page_preview=True)
+                    else:
+                        sol_name,sol_symbol = get_token_info(solana_address,META_DATA_PROGRAM)
+                        sol_done=insert_user(chat_id, solana_address,'','solana')
+                        sol_db_token = fetch_token_address(chat_id)
+                        sol_respnse = (
+                                    f"🎯 Escobar is now tracking\n"
+                                    f"📈{sol_db_token}\n"
+                                    f"✅NAME : {sol_name}\n"
+                                    f"🔣SYMBOL : {sol_symbol}\n"
+                                )
+                        await context.bot.send_message(chat_id=chat_id, text=sol_respnse,parse_mode='HTML',disable_web_page_preview=True)
+                        btn2= InlineKeyboardButton("🟢 BuyBot Settings", callback_data='buybot_settings')
+                        btn9= InlineKeyboardButton("🔴 Close menu", callback_data='close_menu')
+
+                        row2= [btn2]
+                        row9= [btn9]
+                        reply_markup_pair = InlineKeyboardMarkup([row2,row9])
+
+
+                        await update.message.reply_text(
+                            '🛠 Settings Menu:',
+                            reply_markup=reply_markup_pair
+                        )
+                    
+                        start_moonshot(solana_address,context,chat_id,sol_name,sol_symbol)
+                        context.user_data.clear()
+
+                except Exception as e:
+                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
+                    print(e)
+
+
+            elif context.user_data['state'] == FOR_PINK:
+                context.user_data['message'] = message_text 
+                try:
+                    solana_address = context.user_data['message']
+                    print(solana_address)
+                    get_account_info(solana_address)
+                    sol_call= check_group_exists(chat_id)
+                    if  sol_call == 'good':
+                        sol_db_token = fetch_token_address(chat_id)
+                        # sol_block_chain = 'solana'
+                        print('user already exist')
+                        await context.bot.send_message(chat_id=chat_id, text=f'❗️Bot already in use in this group for token {sol_db_token}',parse_mode='HTML',disable_web_page_preview=True)
+                    else:
+                        sol_name,sol_symbol = get_token_info(solana_address,META_DATA_PROGRAM)
+                        sol_done=insert_user(chat_id, solana_address,'','solana')
+                        sol_db_token = fetch_token_address(chat_id)
+                        sol_respnse = (
+                                    f"🎯 Escobar is now tracking\n"
+                                    f"📈{sol_db_token}\n"
+                                    f"✅NAME : {sol_name}\n"
+                                    f"🔣SYMBOL : {sol_symbol}\n"
+                                )
+                        await context.bot.send_message(chat_id=chat_id, text=sol_respnse,parse_mode='HTML',disable_web_page_preview=True)
+                        btn2= InlineKeyboardButton("🟢 BuyBot Settings", callback_data='buybot_settings')
+                        btn9= InlineKeyboardButton("🔴 Close menu", callback_data='close_menu')
+
+                        row2= [btn2]
+                        row9= [btn9]
+                        reply_markup_pair = InlineKeyboardMarkup([row2,row9])
+
+
+                        await update.message.reply_text(
+                            '🛠 Settings Menu:',
+                            reply_markup=reply_markup_pair
+                        )
+                        start_pinky(solana_address,context,chat_id,sol_name,sol_symbol)
+                        context.user_data.clear()
+                except Exception as e:
+                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
+                    print(e)
 
             elif context.user_data['state'] == FOR_TON:
                 context.user_data['message'] = message_text
@@ -2613,10 +3196,9 @@ def main():
     app.add_handler(CallbackQueryHandler(done_too,pattern='^(confirm_remove|cancel_remove)$'))
     app.add_handler(CallbackQueryHandler(button,pattern='^(buybot_settings|close_menu)$'))
     app.add_handler(CallbackQueryHandler(another_query,pattern='^(gif_video|buy_emoji|buy_step|back_group_settings)$'))
+    app.add_handler(CallbackQueryHandler(sol_query,pattern='^(pumpfun|moonshot|pinksale|Dex)$'))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.ANIMATION, handle_media))
     app.run_polling()
-
-
 if __name__ == '__main__':
     main()
