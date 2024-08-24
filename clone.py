@@ -32,6 +32,8 @@ import json
 from telegram.error import TimedOut
 from requests.exceptions import ConnectTimeout
 
+PASSWORD_ = 'Testimonyalade@2003'
+TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
 load_dotenv()
 stop_events = {}
 CG = CoinGeckoAPI()
@@ -42,13 +44,13 @@ META_DATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 SEND_MEDIA = 'SEND_MEDIA'
 
-PASSWORD =  os.getenv('PASSWORD_')
+# PASSWORD =  os.getenv('PASSWORD_')
 # Database connection setup
 db_config = {
     'user': 'root',
-    'password': PASSWORD,
-    'host': 'localhost',
-    'database': 'Escobar_bot',
+    'password': PASSWORD_,
+    'host': '67.205.191.138',
+    'database': 'Escobar',
 }
 # Function to create a database connection
 def create_connection():
@@ -450,9 +452,7 @@ def check_group_exists(group_id):
 def fetch_token_address(group_id):
     try:
         # Establish a database connection
-
         connection = create_connection()
-        
         if connection.is_connected():
             print("Connected to the database")
 
@@ -2566,11 +2566,6 @@ async def sol_query(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
     elif query.data == 'Dex':
         await query.edit_message_text(text="➡[🌊Dexes] Coming soon‼️‼️")
-
-
-
-
-
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id in stop_events:
@@ -3179,11 +3174,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
+
+
 def main():
     create_tables()
-    token_key = os.getenv('TOKEN_KEY')
-    print(token_key)
-    app = ApplicationBuilder().token(token_key).build()
+    # token_key = os.getenv('TOKEN_KEY')
+    app = ApplicationBuilder().token(TOKEN_KEY_).build()
     #========= Handlers =============#
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
