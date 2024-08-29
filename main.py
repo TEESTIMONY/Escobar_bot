@@ -17,7 +17,7 @@ from solana.rpc.websocket_api import RpcTransactionLogsFilterMentions
 from websockets.exceptions import ConnectionClosedError
 from solders.rpc.responses import LogsNotification,SubscriptionResult #type:ignore
 from solders.signature import Signature #type:ignore
-from pycoingecko import CoinGeckoAPI
+from pycoingecko import CoinGeckoAPI        
 from solana.rpc.types import MemcmpOpts
 from typing import List, Union
 import base58

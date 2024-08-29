@@ -31,27 +31,29 @@ import os
 import json
 from telegram.error import TimedOut
 from requests.exceptions import ConnectTimeout
-
+from decimal import Decimal, getcontext
 PASSWORD_ = 'Testimonyalade@2003'
 TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
 load_dotenv()
 stop_events = {}
 CG = CoinGeckoAPI()
+cg = CoinGeckoAPI()
 CLIENT = Client("https://api.mainnet-beta.solana.com")
 RAYDIUM_POOL = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 RAYDIUM_AUTHORITY = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
 META_DATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 SEND_MEDIA = 'SEND_MEDIA'
-
-# PASSWORD =  os.getenv('PASSWORD_')
-# Database connection setup
+client = Client("https://api.mainnet-beta.solana.com")
+#Database connection setup
 db_config = {
     'user': 'root',
     'password': PASSWORD_,
     'host': '67.205.191.138',
     'database': 'Escobar',
 }
+
+
 # Function to create a database connection
 def create_connection():
     try:
@@ -200,6 +202,24 @@ def get_account_info(account):
     )
     return account_instance.value.data
 
+
+def get_solana_token_price(token_address):
+    url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address}"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        # Extracting the price of the token (assumes the first market listed)
+        price = float(data['pairs'][0]['priceUsd'])
+        return price
+    else:
+        raise Exception("Failed to fetch token data from Dexscreener")
+    
+def get_total_solana_supply(mint):
+        _supply = client.get_token_supply(Pubkey.from_string(str(mint)))
+        return _supply.value.ui_amount
+
+
 def unpack_metadata_account(data):
     assert data[0] == 4
     i = 1
@@ -304,6 +324,70 @@ def format_number(number):
     elif number < 1:
         return f"{number:.6f}"
     
+
+def get_solana_price():
+    coingecko_url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
+    last_price = None  # Variable to store the last successful price
+    
+    while True:  # Loop until a successful request or until we decide to return the last price
+        try:
+            # Send a GET request to the API
+            response = requests.get(coingecko_url)
+            
+            # Check if the request was successful
+            if response.status_code == 200:
+                price_data = response.json()
+                solana_price = price_data['solana']['usd']
+                last_price = solana_price  # Update the last successful price
+                return solana_price
+            elif response.status_code == 429:
+                print("Rate limit exceeded. Returning last known price.")
+                if last_price is not None:
+                    return last_price
+                else:
+                    print("No previous price available. Waiting for retry...")
+                    # Wait for 1 minute before retrying (adjust this time as needed)
+                    time.sleep(60)
+            else:
+                print("Failed to fetch Solana price. Status code:", response.status_code)
+                return last_price
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return last_price
+
+# Fetch and print the current price of Solana
+# solana_price = get_solana_price()
+
+
+def special_format(number):
+    if number == 0:
+        return "0"
+
+    # Set precision high enough to capture small numbers accurately
+    getcontext().prec = 50
+    number = Decimal(str(number))
+    
+    # Handle very small decimals with more than 5 leading zeros
+    if 0 < number < Decimal('0.000001'):
+        return "⬇️0.000001"
+
+    # Handle other small decimals with fewer than 4 leading zeros
+    if 0 < number < 1:
+        return f"{number:.4f}".rstrip('0').rstrip('.')
+
+    # Handle larger numbers with suffixes
+    abs_number = abs(number)
+    if abs_number >= 1_000_000_000:
+        formatted = f"{number / 1_000_000_000:.1f}B"
+    elif abs_number >= 1_000_000:
+        formatted = f"{number / 1_000_000:.0f}M"
+    elif abs_number >= 1_000:
+        formatted = f"{number:,.0f}"
+    else:
+        formatted = f"{number:.4f}".rstrip('0').rstrip('.')
+
+    return formatted
+
 def get_token_supply(mint):
         _supply = CLIENT.get_token_supply(Pubkey.from_string(str(mint)))
         return _supply.value.ui_amount
@@ -922,7 +1006,7 @@ WBNB_ADDRESS = Web3.to_checksum_address('0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc0
 ETH_USD_ADDRESS = Web3.to_checksum_address('0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419')
 # WETH token address on Uniswap V2
 WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-CHOOSING,FOR_ETH,FOR_BSC,FOR_BASE,FOR_TON,FOR_PUMP,SEND_MEDIA,FOR_MOON,FOR_PINK = range(9)
+CHOOSING,FOR_ETH,FOR_BSC,FOR_BASE,FOR_TON,FOR_PUMP,SEND_MEDIA,FOR_MOON,FOR_PINK,FOR_DEXES = range(10)
 def is_valid_ethereum_address(address: str)-> bool:
     return re.match(r'^0x[a-fA-F0-9]{40}$', address) is not None
 
@@ -986,7 +1070,12 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
             url = f'https://api.dedust.io/v2/pools/{token_address}/trades'
             data = requests.get(url)
             result = data.json()
+            with open('h.json','w')as file:
+                json.dump(result,file,indent=4)
             result = result[-1]
+            with open('h.json','w')as file:
+                json.dump(result,file,indent=4)
+
             response = f'''amount_in = {result['amountIn']}
         amount_out = {result['amountOut']}'''
             # Check if the current response is different from the previous one
@@ -1019,20 +1108,20 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
                         message = (
                             f"<b>✅{name}</b> BUY!\n\n"
                             f"{emoji*calc}\n"
-                            f"💵{round(float(ton_bought),2)}<b>TON</b>\n"
-                            f"🪙{round(float(token_bought),5)} <b>{symbol}</b>\n"
-                            f"🔷${round(usd_value_bought,5)}\n"
-                            f"🧢MKT Cap : ${format_number(mktcap)}\n\n"
+                            f"💵{special_format(float(ton_bought))}<b>TON</b>\n"
+                            f"🪙{special_format(float(token_bought))} <b>{symbol}</b>\n"
+                            f"🔷${special_format(usd_value_bought)}\n"
+                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
                             f"🦎{chart} 🔷{trend}"
                         )
                     else:
                         message = (
                             f"<b>✅{name}</b> BUY!\n\n"
                             f"{'🟢'*calc}\n"
-                            f"💵{float(ton_bought)*10**-9}<b>TON</b>\n"
-                            f"🪙{round(float(token_bought)*10**-9,5)} <b>{symbol}</b>\n"
-                            f"🔷${usd_value_bought}\n"
-                            f"🧢MKT Cap : ${format_number(mktcap)}\n\n"
+                            f"💵{special_format(float(ton_bought)*10**-9)}<b>TON</b>\n"
+                            f"🪙{special_format(float(token_bought)*10**-9)} <b>{symbol}</b>\n"
+                            f"🔷${special_format(usd_value_bought)}\n"
+                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
                             f"🦎{chart} 🔷{trend}"
                         )
 
@@ -1344,8 +1433,105 @@ BASE_PAIR_ABI = [
     }
 ]
 
+
+#
+def calculate_asset_valu_mc_cap(amount):
+    price_per_sol = cg.get_price("solana", "usd")["solana"]["usd"]
+    return float(amount) * float(price_per_sol)
+
+
+
+def get_token_supply_mc_cap(mint):
+        _supply = client.get_token_supply(Pubkey.from_string(str(mint)))
+        return _supply.value.ui_amount
+
+def get_radium_mktCap(signature,token_address):
+    try:
+        # name,symbol = get_token_info(token_address,META_DATA_PROGRAM)
+        tx_signature = Signature.from_string(str(signature))
+        tx_info = client.get_transaction(
+            tx_signature, "jsonParsed", max_supported_transaction_version=0
+        )
+        data = tx_info.value.transaction.meta
+    
+        post_token_balance = [
+            item
+            for item in data.post_token_balances
+            if str(item.owner) == str(RAYDIUM_AUTHORITY)
+        ]
+        pre_token_balance = [
+            item
+            for item in data.pre_token_balances
+            if str(item.owner) == str(RAYDIUM_AUTHORITY)
+        ]
+
+        base_token_account_index = None
+        quote_token_account_index = None
+
+        account__index = None
+        for index, item in enumerate(post_token_balance):
+            if str(item.mint) == str(token_address):
+                base_token_account_index = item.account_index
+                account__index = index - 1
+        quote_token_account_index = post_token_balance[account__index].account_index
+        if base_token_account_index and quote_token_account_index:
+            post_token_a = [
+                item
+                for item in post_token_balance
+                if item.account_index == base_token_account_index
+            ]
+            post_token_b = [
+                item
+                for item in post_token_balance
+                if item.account_index == quote_token_account_index
+            ]
+            pre_token_a = [
+                item
+                for item in pre_token_balance
+                if item.account_index == base_token_account_index
+            ]
+            pre_token_b = [
+                item
+                for item in pre_token_balance
+                if item.account_index == quote_token_account_index
+            ]
+
+            token_a_base = post_token_a[0]
+            token_a_quote = post_token_b[0]
+            token_b_base = pre_token_a[0]
+            token_b_quote = pre_token_b[0]
+
+            _PRICE = None
+            
+
+            liquidity = token_a_quote.ui_token_amount.ui_amount
+            if (
+                token_a_base.ui_token_amount.ui_amount
+                > token_a_quote.ui_token_amount.ui_amount
+            ):
+                _PRICE = (
+                    token_a_quote.ui_token_amount.ui_amount
+                    / token_a_base.ui_token_amount.ui_amount
+                )
+            else:
+                _PRICE = (
+                    token_a_base.ui_token_amount.ui_amount
+                    / token_a_quote.ui_token_amount.ui_amount
+                )
+
+            PRICE = "{:.8f}".format(_PRICE)
+            price_usd = float(calculate_asset_valu_mc_cap(PRICE))
+            MCAP = get_token_supply_mc_cap(token_address) * price_usd
+            if price_usd and MCAP:
+                return price_usd , MCAP
+    except Exception as e:
+         print(e)
+#
+
 def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id):
     try:
+        trans_hash = event['transactionHash']
+        TXN = trans_hash.hex()
         args = event['args']
         sender = args['sender']
         to = args['to']
@@ -1393,26 +1579,30 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
             chart_url=f"https://dexscreener.com/base/{base_pair}"
             trend=f"<a href='{trend_url}'>Trending</a>"
             chart=f'<a href="{chart_url}">Chart</a>'
+            thenew_signer = f"{to[:7]}...{to[-4:]}"
+            sign =f"<a href='https://bscscan.com/address/{to}'>{thenew_signer}</a>" 
+            txn = f"<a href='https://bscscan.com/tx/{TXN}'>TXN</a>"
+            emoji = get_emoji_from_db(chat_id)
             number = amount0_in * 10**-18
             # ew_weth =f"{number:.20f}"
             emoji = get_emoji_from_db(chat_id)
             buy_step_number = retrieve_group_number(chat_id)
             gr = amount1_out * 10**-dec
-            useage = format_with_unicode(gr)
-            use_weth = format_with_unicode(number)
+            useage = special_format(gr)
+            use_weth = special_format(number)
             if buy_step_number == None:
                 buuy = 10
             else:
                 buuy = buy_step_number
             calc = int(usd_value_bought/buuy)
             # print(type(usd_value_bought))
-            if usd_value_bought < 0.01:
-                print('true')
-                usd_value_bought = '⬇️0.01'
-            else:
-                print('no')
-                usd_value_bought = round(usd_value_bought,3)
-            print('val',usd_value_bought)
+            # if usd_value_bought < 0.01:
+            #     print('true')
+            #     usd_value_bought = '⬇️0.01'
+            # else:
+            #     print('no')
+            #     usd_value_bought = round(usd_value_bought,3)
+            # print('val',usd_value_bought)
 
             if emoji:
                 message = (
@@ -1420,8 +1610,9 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                     f"{emoji*calc}\n"
                     f"💵 {use_weth} <b>WETH</b>\n"
                     f"🪙{useage} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought}\n"
-                    f"🧢MKT Cap : ${formatted_market_cap}\n\n"
+                    f"👤{sign}|{txn}\n"
+                    f"🔷${special_format(usd_value_bought)}\n"
+                    f"🧢MKT Cap : ${special_format(MKT_base)}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
@@ -1431,8 +1622,9 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
                     f"{'🟢'*calc}\n"
                     f"💵 {use_weth} <b>WETH</b>\n"
                     f"🪙{useage} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought}\n"
-                    f"🧢MKT Cap : ${formatted_market_cap}\n\n"
+                    f"👤{sign}|{txn}\n"
+                    f"🔷${special_format(usd_value_bought)}\n"
+                    f"🧢MKT Cap : ${special_format(MKT_base)}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
@@ -1508,6 +1700,8 @@ def bsc_get_token_price(token_address, pair_address):
 def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
     try:
     # print(f"Swap event detected: {event}")
+        trans_hash = event['transactionHash']
+        TXN = trans_hash.hex()
         args = event['args']
         sender = args['sender']
         to = args['to']
@@ -1554,6 +1748,9 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
             trend_url=f"https://t.me/BSCTRENDING/5431871"
             trend=f"<a href='{trend_url}'>Trending</a>"
             chart=f'<a href="{chart_url}">Chart</a>'
+            thenew_signer = f"{to[:7]}...{to[-4:]}"
+            sign =f"<a href='https://bscscan.com/address/{to}'>{thenew_signer}</a>" 
+            txn = f"<a href='https://bscscan.com/tx/{TXN}'>TXN</a>"
             emoji = get_emoji_from_db(chat_id)
             buy_step_number = retrieve_group_number(chat_id)
             if buy_step_number == None:
@@ -1565,10 +1762,11 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
                 message = (
                     f"<b> ✅{name}</b> Buy!\n\n"
                     f"{emoji*calc}\n"
-                    f"💵 {amount1In * 10**-18} <b>BSC</b>\n"
-                    f"🪙{formatted_number} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"🧢MKT Cap : ${bsc_formatted_market_cap}\n\n"
+                    f"💵 {special_format(amount1In * 10**-18)} <b>BSC</b>\n"
+                    f"🪙{special_format(amount0Out* 10**-deci)} <b>{symbol}</b>\n"
+                    f"👤{sign}|{txn}\n"
+                    f"🔷${special_format(usd_value_bought)}\n"
+                    f"🧢MKT Cap : ${special_format(bsc_MKT_cap)}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
@@ -1576,14 +1774,14 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
                 message = (
                     f"<b> ✅{name}</b> Buy!\n\n"
                     f"{'🟢'*calc}\n"
-                    f"💵 {round(amount0In * 10**-18)} <b>BSC</b>\n"
-                    f"🪙{formatted_number} <b>{symbol}</b>\n"
-                    f"🔷${usd_value_bought:.2f}\n"
-                    f"🧢MKT Cap : ${bsc_formatted_market_cap}\n"
+                    f"💵 {special_format(amount1In * 10**-18)} <b>BSC</b>\n"
+                    f"🪙{special_format(amount0Out* 10**-deci)} <b>{symbol}</b>\n"
+                    f"👤{sign}|{txn}\n"
+                    f"🔷${special_format(usd_value_bought)}\n"
+                    f"🧢MKT Cap : ${special_format(bsc_MKT_cap)}\n\n"
                     f"🦎{chart} 🔷{trend}"
                 )
                 return message
-
 
         else:
             pass 
@@ -1593,6 +1791,9 @@ def handle_bsc_events(event,bsc_addr,bsc_pair,name,symbol,decimal,chat_id):
 def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
     try:
         # print(f"Swap event detected: {event}")
+        trans_hash = event['transactionHash']
+        TXN = trans_hash.hex()
+        # print(formatted_string)
         args = event['args']
         sender = args['sender']
         to = args['to']
@@ -1628,6 +1829,9 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
             chart_url=f"https://dexscreener.com/ethereum/{pair}"
             trend=f"<a href='{trend_url}'>Trending</a>"
             chart=f'<a href="{chart_url}">Chart</a>'
+            thenew_signer = f"{to[:7]}...{to[-4:]}"
+            sign =f"<a href='https://etherscan.io/address/{to}'>{thenew_signer}</a>" 
+            txn = f"<a href='https://etherscan.io/tx/{TXN}'>TXN</a>"
             print(int(decimal))
             dec=int(decimal)
             print(weth_price_usd)
@@ -1648,10 +1852,11 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
                     message = (
                         f"<b> ✅{name}</b> Buy!\n\n"
                         f"{emoji*calc}\n"
-                        f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
-                        f"🪙{(formatted_number)} <b>{symbol}</b>\n"
-                        f"🔷${usd_value_bought:.2f}\n"
-                        f"🧢MKT Cap : ${formatted_market_cap}\n\n"
+                        f"💵 {special_format(amount1In * 10**-18)} <b>ETH</b>\n"
+                        f"🪙{special_format(amount0Out* 10**-dec)} <b>{symbol}</b>\n"
+                        f"👤{sign}|{txn}\n"
+                        f"🔷${special_format(usd_value_bought)}\n"
+                        f"🧢MKT Cap : ${special_format(MKT_cap)}\n\n"
                         f"🦎{chart} 🔷{trend}"
                     )
                     return message
@@ -1659,10 +1864,11 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
                     message = (
                         f"<b> ✅{name}</b> Buy!\n\n"
                         f"{'🟢'*calc}\n"
-                        f"💵 {round(amount1In * 10**-18,3)} <b>ETH</b>\n"
-                        f"🪙{(formatted_number)} <b>{symbol}</b>\n"
-                        f"🔷${usd_value_bought:.2f}\n"
-                        f"MKT Cap : ${formatted_market_cap}\n\n"
+                        f"💵 {special_format(amount1In * 10**-18)} <b>ETH</b>\n"
+                        f"🪙{special_format(amount0Out* 10**-dec)} <b>{symbol}</b>\n"
+                        f"👤{sign}|{txn}\n"
+                        f"🔷${special_format(usd_value_bought)}\n"
+                        f"🧢MKT Cap : ${special_format(MKT_cap)}\n\n"
                         f"🦎{chart} 🔷{trend}"
                     )
                     return message
@@ -1981,12 +2187,9 @@ def start_logging(event_filter, poll_interval, context, chat_id,decimal,name,sym
 #
 #
 
-
 async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol):
     try:
         prev_res = None
-        
-
         while not stop_event.is_set():
             url = "https://api.mainnet-beta.solana.com"
             try:
@@ -2025,6 +2228,10 @@ async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symb
                             await context.bot.send_message(chat_id=chat_id, text="Detected a Swap transaction!")
 
                         elif "Program log: Instruction: Buy" in messages:
+                            signer =  res_data['result']['transaction']['message']['accountKeys']
+                            for items in signer:
+                                if items['signer'] == True:
+                                    the_signer = items['pubkey']
                             data = res_data['result']['meta']['innerInstructions'][0]['instructions'][:7]
                             actual_authority = []
                             token_amount = None
@@ -2048,57 +2255,76 @@ async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symb
                                         solana_amount = info['lamports'] * 10**-9
                                 except KeyError:
                                     continue
-                            chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                            chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
                             trend_url=f"https://t.me/BSCTRENDING/5431871"
                             trend=f"<a href='{trend_url}'>Trending</a>"
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
                             if token_amount and solana_amount:
+                                supply = get_token_supply_mc_cap(token_address)
+                                mk= float(solana_amount/token_amount)*supply
+                                Mkt_cap = mk*get_solana_price()
+                                print(solana_amount/token_amount)
                                 emoji = get_emoji_from_db(chat_id)
+                                usd_value_bought= solana_amount * get_solana_price()
                                 buy_step_number = retrieve_group_number(chat_id)
                                 if buy_step_number == None:
                                     buuy = 10
                                 else:
                                     buuy = buy_step_number
-                                # calc = int(usd_value_bought/buuy)
+                                calc = int(usd_value_bought/buuy)
 
                                 if chat_id_exists(chat_id):
                                     if emoji:
                                         message = (
                                             f"<b> ✅{name}</b> Buy!\n\n"
-                                            f"{emoji*9}\n"
-                                            f"💵 {format_with_unicode(solana_amount)} <b>SOL</b>\n"
-                                            f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
-                                            # f"🔷${usd_value_bought:.2f}\n"
-                                            # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                            f"{emoji*calc}\n"
+                                            f"💵 {special_format(solana_amount)} <b>SOL</b>\n"
+                                            f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                            f"👤{sign}|{txn}\n"
+                                            f"🔷${special_format(usd_value_bought)}\n"
+                                            f"🧢MKT Cap : ${special_format(Mkt_cap)}\n\n"
                                             f"🦎{chart} 🔷{trend}"
-                                        )
+                                        )   
                                     else:
                                         message = (
                                             f"<b> ✅{name}</b> Buy!\n\n"
-                                            f"{'🟢'*9}\n"
-                                            f"💵 {format_with_unicode(solana_amount)} <b>SOL</b>\n"
-                                            f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
-                                            # f"🔷${usd_value_bought:.2f}\n"
-                                            # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                            f"{'🟢'*calc}\n"
+                                            f"💵 {special_format(solana_amount)} <b>SOL</b>\n"
+                                            f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                            f"👤{sign}|{txn}\n"
+                                            f"🔷${special_format(usd_value_bought)}\n"
+                                            f"🧢MKT Cap : ${special_format(Mkt_cap)}\n\n"
                                             f"🦎{chart} 🔷{trend}"
                                         )
 
-                                
-                                # message = (
-                                #     f"Detected a Buy transaction!\n\n"
-                                #     f"Token Amount: {token_amount}\n"
-                                #     f"Solana Amount: {solana_amount}"
-                                # )
-                                await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                try:
+                                    if message:
+                                        media = fetch_media_from_db(chat_id)
+                                        if media:
+                                            file_id, file_type = media
+                                            if file_type == 'photo':
+                                                await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                            elif file_type == 'gif':
+                                                await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                        else:
+                                            print("No media found in the database for this group.")
+                                            await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                        # print('here:',message)
+                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                except Exception as e:
+                                    print('thise',e)
                             else:
                                 print('failed to parse')
 
                         else:
                             # await context.bot.send_message(chat_id=chat_id, text="Detected a Sell or Failed transaction.")
                             print('Detected a Sell or Failed transaction.')
-
                     except IndexError:
                         print('sell')
-                    
                     prev_res = signature
                 else:
                     print('No new transactions detected.')  # Optional: Remove or replace with logging if needed
@@ -2139,11 +2365,487 @@ def start_sol_monitoring(token_address, interval, context, chat_id,name,symbol):
 #
 #
 #
+async def dexes(token_address,context,chat_id,name,symbol,stop_event):
+    prev_resp =None
+    try:
+        while not stop_event.is_set():
+            url = "https://api.mainnet-beta.solana.com"
+            headers = {
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getSignaturesForAddress",
+                "params": [
+                    token_address,
+                    {
+                        "limit": 1
+                    }
+                ]
+            }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            signature = response.json()['result'][0]['signature']
+            print(signature)
+            payload2 = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getTransaction",
+                "params": [
+                    signature, #change this to signatur comming from step one 
+                    {
+                        "encoding": "jsonParsed",
+                        "maxSupportedTransactionVersion": 0
+                    }
+                ]
+            }
+            try:
+                if prev_resp!= signature:
+                    response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
+                    res_data = response2.json()
+                    messages = res_data['result']['meta']['logMessages']
+                    with open('test.json','w')as file:
+                        json.dump(res_data,file,indent=4)
+                    # print(messages)
+                    if not "Program JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4 failed: custom program error: 0x1771" in res_data['result']['meta']['logMessages'] and not "Program YmirFH6wUrtUMUmfRPZE7TcnszDw689YNWYrMgyB55N failed: custom program error: 0x189e"in res_data['result']['meta']['logMessages'] and not "Program 8Dukjp9fQB1Pbi3dkPd4Nz8AHir5vnuKXCyrYzzQDor failed: custom program error: 0x6eb"in res_data['result']['meta']['logMessages'] and not "Program 3tZPEagumHvtgBhivFJCmhV9AyhBHGW9VgdsK52i4gwP failed: custom program error: 0x1770" in res_data['result']['meta']['logMessages'] :
+                        if 'Program log: Instruction: Swap' in messages:
+                            print('filtered only swap now')
+                            signer =  res_data['result']['transaction']['message']['accountKeys']
+                            for items in signer:
+                                if items['signer'] == True:
+                                    the_signer = items['pubkey']
+                            # print(len(res_data['result']['meta']['innerInstructions'][0:3]))
+                            if len(res_data['result']['meta']['innerInstructions'][0:3]) <=3:
+                                new =res_data['result']['meta']['innerInstructions'][0:3][0]['instructions']
+                                decimal =res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                                chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                                trend_url=f"https://t.me/BSCTRENDING/5431871"
+                                trend=f"<a href='{trend_url}'>Trending</a>"
+                                thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                                sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                                txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                                price_usd , mktcap = get_radium_mktCap(signature,token_address)
+                                for instance in new:
+                                    try:
+                                        if instance['parsed']['info']['authority'] == '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1':
+                                            print('Raydium')
+                                            signer =  res_data['result']['transaction']['message']['accountKeys']
+                                            for items in signer:
+                                                if items['signer'] == True:
+                                                    the_signer = items['pubkey']
+                                            chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                                            trend=f"<a href='{trend_url}'>Trending</a>"
+                                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                                            decimal =res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                                            # print('Decimal:',decimal)
+                                            inddd = new.index(instance)
+                                            token = float(new[inddd]['parsed']['info']['amount'])*10**-decimal
+                                            sol = float(new[inddd-1]['parsed']['info']['amount'])*10**-9
+                                            price_usd , mktcap = get_radium_mktCap(signature,token_address)
+
+                                            print(sol)
+                                            if token and sol:
+                                                usd_value_bought = float(price_usd) * float(token)
+                                                
+                                                emoji = get_emoji_from_db(chat_id)
+                                                buy_step_number = retrieve_group_number(chat_id)
+                                                if buy_step_number == None:
+                                                    buuy = 10
+                                                else:
+                                                    buuy = buy_step_number
+                                                calc = int(usd_value_bought/buuy)
+                                                if chat_id_exists(chat_id):
+                                                    if emoji:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{emoji*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"💰${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                    else:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{'🟢'*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"💰${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                                try:
+                                                    if message:
+                                                        media = fetch_media_from_db(chat_id)
+                                                        if media:
+                                                            file_id, file_type = media
+                                                            if file_type == 'photo':
+                                                                await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                                            elif file_type == 'gif':
+                                                                await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                                        else:
+                                                            print("No media found in the database for this group.")
+                                                            await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                        # print('here:',message)
+                                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                except Exception as e:
+                                                    print('thise',e)
+
+                                        elif instance['programId'] == 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc':
+                                            inst_index = new.index(instance)
+                                            new = new[inst_index:inst_index+3][1:]
+                                            sol = new[0]['parsed']['info']['amount']
+                                            token = new[1]['parsed']['info']['amount']
+                                            print(sol)
+
+                                            if token and sol:
+                                                usd_value_bought = float(price_usd) * float(token)
+
+                                                emoji = get_emoji_from_db(chat_id)
+                                                buy_step_number = retrieve_group_number(chat_id)
+                                                if buy_step_number == None:
+                                                    buuy = 10
+                                                else:
+                                                    buuy = buy_step_number
+                                                calc = int(usd_value_bought/buuy)
+
+                                                if chat_id_exists(chat_id):
+                                                    if emoji:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{emoji*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                    else:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{'🟢'*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                        
+                                                # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                                try:
+                                                    if message:
+                                                        media = fetch_media_from_db(chat_id)
+                                                        if media:
+                                                            file_id, file_type = media
+                                                            if file_type == 'photo':
+                                                                await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                                            elif file_type == 'gif':
+                                                                await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                                        else:
+                                                            print("No media found in the database for this group.")
+                                                            await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                        # print('here:',message)
+                                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                except Exception as e:
+                                                    print('thise',e)
+
+                                    except KeyError:
+                                        pass
+                            else:
+                                new = res_data['result']['meta']['innerInstructions']
+                                signer =  res_data['result']['transaction']['message']['accountKeys']
+                                for items in signer:
+                                    if items['signer'] == True:
+                                        the_signer = items['pubkey']
+                                
+                                for instance in new:
+                                    new = instance['instructions']
+                                    for i in new:
+                                        if i['programId'] == 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc':
+                                            inx = new.index(i)
+                                            new = new[inx+1 : inx+3] 
+                                            chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                                            trend=f"<a href='{trend_url}'>Trending</a>"
+                                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                                            decimal =res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                                            sol = float(new[0]['parsed']['info']['amount'])*10**-9
+                                            token = float(new[1]['parsed']['info']['amount'])*10**-decimal
+                                            price_usd , mktcap = get_radium_mktCap(signature,token_address)
+                                            if token and sol:
+                                                usd_value_bought = float(price_usd) * float(token)
+                                                emoji = get_emoji_from_db(chat_id)
+                                                buy_step_number = retrieve_group_number(chat_id)
+                                                if buy_step_number == None:
+                                                    buuy = 10
+                                                else:
+                                                    buuy = buy_step_number
+                                                calc = int(usd_value_bought/buuy)
+
+                                                if chat_id_exists(chat_id):
+                                                    if emoji:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{emoji*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                    else:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{'🟢'*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                                try:
+                                                    if message:
+                                                        media = fetch_media_from_db(chat_id)
+                                                        if media:
+                                                            file_id, file_type = media
+                                                            if file_type == 'photo':
+                                                                await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                                            elif file_type == 'gif':
+                                                                await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                                        else:
+                                                            print("No media found in the database for this group.")
+                                                            await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                        # print('here:',message)
+                                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                except Exception as e:
+                                                    print('thise',e)
+                        elif "Program log: Instruction: Buy" in messages:
+                            signer =  res_data['result']['transaction']['message']['accountKeys']
+                            for items in signer:
+                                if items['signer'] == True:
+                                    the_signer = items['pubkey']
+                            chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                            trend=f"<a href='{trend_url}'>Trending</a>"
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                            data = res_data['result']['meta']['innerInstructions'][2]['instructions']
+                            price_usd , mktcap = get_radium_mktCap(signature,token_address)
+
+                            actual_authority = []
+                            for instance in data:
+                                try:
+                                    info = instance["parsed"]["info"]
+                                    authority = instance["parsed"]["info"]["authority"]
+                                    print(f"Authority: {authority}")
+                                    actual_authority.append(authority)
+                                    # print(info)
+                                    decimal =res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+
+                                    if 'authority' in info:
+                                        token = float(info['amount'])*10**-decimal
+                                    else:
+                                        pass
+                                    decimal = res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                                except KeyError:
+                                    continue
+                            for i in data:
+                                try:
+                                    info = i["parsed"]["info"]
+                                    if info['destination'] == actual_authority[-1]:
+                                        sol = float(info['lamports'])*10**-9
+                                    else:
+                                        pass
+                                except KeyError:
+                                    continue
+
+                            if token and sol:
+                                usd_value_bought = float(price_usd) * float(token)
+
+                                emoji = get_emoji_from_db(chat_id)
+                                buy_step_number = retrieve_group_number(chat_id)
+                                if buy_step_number == None:
+                                    buuy = 10
+                                else:
+                                    buuy = buy_step_number
+                                calc = int(usd_value_bought/buuy)
+                                if chat_id_exists(chat_id):
+                                    if emoji:
+                                        message = (
+                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                            f"{emoji*calc}\n"
+                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                            f"👤{sign}|{txn}\n"
+                                            f"🔷${special_format(usd_value_bought)}\n"
+                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                            f"🦎{chart} 🔷{trend}"
+                                        )
+                                    else:
+                                        message = (
+                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                            f"{'🟢'*calc}\n"
+                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                            f"👤{sign}|{txn}\n"
+                                            f"🔷${special_format(usd_value_bought)}\n"
+                                            f"🧢🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                            f"🦎{chart} 🔷{trend}"
+                                        )
+                                # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                try:
+                                    if message:
+                                        media = fetch_media_from_db(chat_id)
+                                        if media:
+                                            file_id, file_type = media
+                                            if file_type == 'photo':
+                                                await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                            elif file_type == 'gif':
+                                                await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                        else:
+                                            print("No media found in the database for this group.")
+                                            await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                        # print('here:',message)
+                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                except Exception as e:
+                                    print('thise',e)
+                        else:
+                            # print('i think is a failed transaction or sell ')
+                            signer =  res_data['result']['transaction']['message']['accountKeys']
+                            for items in signer:
+                                if items['signer'] == True:
+                                    the_signer = items['pubkey']
+                            data_2 = res_data['result']['meta']['innerInstructions']
+                            chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                            trend=f"<a href='{trend_url}'>Trending</a>"
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                            price_usd , mktcap = get_radium_mktCap(signature,token_address)
+
+
+                            for instance in data_2:
+                                data_3 = instance['instructions']
+                                # print(data_3)
+                                for i in data_3:
+                                    try:
+                                        auth = i['parsed']['info']['authority']
+                                        if auth == '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1':
+                                            token_data = i['parsed']
+                                            inddx = data_3.index(i)
+                                            sol_data = data_3[inddx-1]
+                                            # print(token_data)
+                                            decimal =res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+
+                                            # print(sol_data)
+                                            token = float(token_data['info']['amount'])*10**-decimal
+                                            sol = float(sol_data['parsed']['info']['amount'])*10**-9
+                                            usd_value_bought = float(price_usd) * float(token)
+
+                                            if token and sol:
+                                                emoji = get_emoji_from_db(chat_id)
+                                                buy_step_number = retrieve_group_number(chat_id)
+                                                if buy_step_number == None:
+                                                    buuy = 10
+                                                else:
+                                                    buuy = buy_step_number
+                                                calc = int(usd_value_bought/buuy)
+
+                                                if chat_id_exists(chat_id):
+                                                    if emoji:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{emoji*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+                                                    else:
+                                                        message = (
+                                                            f"<b> ✅{name}</b> Buy!\n\n"
+                                                            f"{'🟢'*calc}\n"
+                                                            f"💵 {special_format(sol)} <b>SOL</b>\n"
+                                                            f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                                            f"👤{sign}|{txn}\n"
+                                                            f"🔷${special_format(usd_value_bought)}\n"
+                                                            f"🧢MKT Cap : ${special_format(mktcap)}\n\n"
+                                                            f"🦎{chart} 🔷{trend}"
+                                                        )
+
+                                            try:
+                                                if message:
+                                                    media = fetch_media_from_db(chat_id)
+                                                    if media:
+                                                        file_id, file_type = media
+                                                        if file_type == 'photo':
+                                                            await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                                        elif file_type == 'gif':
+                                                            await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                                    else:
+                                                        print("No media found in the database for this group.")
+                                                        await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                                    # print('here:',message)
+                                                    # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                            except Exception as e:
+                                                print('thise',e)
+                                            # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                                    except KeyError:
+                                        continue
+                            
+                    else:
+                        # print("Program JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4 failed: custom program error: 0x1771")
+                        pass
+                    prev_resp = signature
+            except IndexError:
+                print('sell')   
+            except KeyError:
+                pass
+            except Exception as e:
+                print('error',e)
+            await asyncio.sleep(5)  # Adjust the interval as needed
+
+    except ConnectTimeout:
+        print("Connection timed out, retrying...")
+        await asyncio.sleep(5)  # Adjust the interval as needed
+    except Exception as e:
+        print(e)
+    
 # Define a handler for when the bot is added to a group
 ##
+def start_dexes(token_address, context, chat_id,name,symbol):
+    if chat_id not in stop_events:
+        stop_events[chat_id] = asyncio.Event()
+    stop_event = stop_events[chat_id]
+    stop_event.clear()
+    asyncio.run_coroutine_threadsafe(
+        dexes(token_address,context,chat_id,name,symbol,stop_event),
+        asyncio.get_event_loop()
+    )
 #
-
-
 async def pinky(token_address, context, chat_id,name,symbol,stop_event):
     previous_resp = None
     while not stop_event.is_set():
@@ -2179,7 +2881,6 @@ async def pinky(token_address, context, chat_id,name,symbol,stop_event):
         }
         try:
             if previous_resp != signature:
-            
                 response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
                 res_data = response2.json()
                 messages = res_data['result']['meta']['logMessages']
@@ -2188,11 +2889,10 @@ async def pinky(token_address, context, chat_id,name,symbol,stop_event):
                 if 'Program log: Instruction: Swap' in messages:
                     # print('filtered only swap now')
                     new =res_data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
-                    with open('g.json','w')as file:
-                        json.dump(new,file,indent= 4)
                     # print(parsed[0]['parsed']['info']['tokenAmount'])
                     # print(parsed[1]['parsed']['info']['tokenAmount'])
                 elif "Program log: Instruction: Buy" in messages:
+                    signer =  res_data['result']['transaction']['message']['accountKeys']
                     data = res_data['result']['meta']['innerInstructions'][2]['instructions']
                     actual_authority = []
                     for instance in data:
@@ -2207,6 +2907,9 @@ async def pinky(token_address, context, chat_id,name,symbol,stop_event):
                             else:
                                 pass
                             decimal = res_data['result']['meta']['postTokenBalances'][0]['uiTokenAmount']['decimals']
+                            for items in signer:
+                                if items['signer'] == True:
+                                    the_signer = items['pubkey']
                         except KeyError:
                             continue
                     for i in data:
@@ -2219,47 +2922,74 @@ async def pinky(token_address, context, chat_id,name,symbol,stop_event):
                                 pass
                         except KeyError:
                             continue
-                    chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                    chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
                     trend_url=f"https://t.me/BSCTRENDING/5431871"
                     trend=f"<a href='{trend_url}'>Trending</a>"
+                    thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                    sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                    txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
                     if token and sol_amount:
+                        supply = get_token_supply_mc_cap(token_address)
+                        print(supply)
+                        mk= float(sol_amount/token)*supply
+                        Mkt_cap = mk*get_solana_price()
+                        print(Mkt_cap)
                         emoji = get_emoji_from_db(chat_id)
                         buy_step_number = retrieve_group_number(chat_id)
+                        usd_value_bought = sol_amount *get_solana_price()
                         if buy_step_number == None:
                             buuy = 10
                         else:
                             buuy = buy_step_number
-                        # calc = int(usd_value_bought/buuy)
+                        calc = int(usd_value_bought/buuy)
 
                         if chat_id_exists(chat_id):
                             if emoji:
                                 message = (
                                     f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{emoji*9}\n"
-                                    f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
-                                    f"🪙{format_number(token)} <b>{symbol}</b>\n"
-                                    # f"🔷${usd_value_bought:.2f}\n"
-                                    # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                    f"{emoji*calc}\n"
+                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                    f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                    f"👤{sign}|{txn}\n"
+                                    f"🔷${special_format(usd_value_bought)}\n"
+                                    f"🧢MKT Cap : ${special_format(Mkt_cap)}\n\n"
                                     f"🦎{chart} 🔷{trend}"
                                 )
                             else:
                                 message = (
                                     f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{'🟢'*9}\n"
-                                    f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
-                                    f"🪙{format_number(token)} <b>{symbol}</b>\n"
-                                    # f"🔷${usd_value_bought:.2f}\n"
-                                    # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                    f"{'🟢'*calc}\n"
+                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                    f"🪙{special_format(token)} <b>{symbol}</b>\n"
+                                    f"👤{sign}|{txn}\n"
+                                    f"🔷${special_format(usd_value_bought)}\n"
+                                    f"🧢MKT Cap : $\n\n"
                                     f"🦎{chart} 🔷{trend}"
                                 )
-                        await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                        # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+                        try:
+                            if message:
+                                media = fetch_media_from_db(chat_id)
+                                if media:
+                                    file_id, file_type = media
+                                    if file_type == 'photo':
+                                        await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                    elif file_type == 'gif':
+                                        await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                else:
+                                    print("No media found in the database for this group.")
+                                    await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                # print('here:',message)
+                                # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                        except Exception as e:
+                            print('thise',e)
 
                     # print(data)
                 else:
                     print('i think is a failed transaction or sell ')
             else:
-                print('already there')
-                
+                print('already there') 
             previous_resp = signature
             await asyncio.sleep(5)  # Adjust the interval as needed
         except IndexError:
@@ -2331,11 +3061,15 @@ async def moonshot(token_address, context, chat_id,name , symbol,stop_event):
                         new = data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
 
                     elif "Program log: Instruction: Buy" in messages:
+                        signer =  data['result']['transaction']['message']['accountKeys']
                         data = data['result']['meta']['innerInstructions'][0]['instructions'][:7]
                         actual_authority = []
                         sol_amount = 0
                         token_amount = 0
                         decimal = 0
+                        for items in signer:
+                            if items['signer'] == True:
+                                the_signer = items['pubkey']
                         for instance in data:
                             try:
                                 info = instance["parsed"]["info"]
@@ -2361,40 +3095,67 @@ async def moonshot(token_address, context, chat_id,name , symbol,stop_event):
                             except KeyError:
                                 continue
                         # Send the SOL and token amount to the Telegram group
-                        chart =f"<a href='https://birdeye.so/token/{token_address}/{token_address}'>Chart</a> ⋙ ⋙ <a href='https://solscan.io/tx/{str(signature)}'>TXN</a>"
+                        chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
                         trend_url=f"https://t.me/BSCTRENDING/5431871"
                         trend=f"<a href='{trend_url}'>Trending</a>"
-                        if sol_amount or token_amount:
+                        supply_=get_total_solana_supply(token_address)
+                        res = get_solana_token_price(token_address)
+                        mkt_cap = float(supply_)*float(res)
+                        usd_value_bought = res*token_amount
+                        if sol_amount or token_amount or the_signer:
                             emoji = get_emoji_from_db(chat_id)
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
                             buy_step_number = retrieve_group_number(chat_id)
                             if buy_step_number == None:
                                 buuy = 10
                             else:
                                 buuy = buy_step_number
-                            # calc = int(usd_value_bought/buuy)
+                            calc = int(usd_value_bought/buuy)
 
                             if chat_id_exists(chat_id):
                                 if emoji:
                                     message = (
                                         f"<b> ✅{name}</b> Buy!\n\n"
-                                        f"{emoji*9}\n"
-                                        f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
-                                        f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
-                                        # f"🔷${usd_value_bought:.2f}\n"
-                                        # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                        f"{emoji*calc}\n"
+                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(usd_value_bought)}\n"
+                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
                                         f"🦎{chart} 🔷{trend}"
                                     )
                                 else:
                                     message = (
                                         f"<b> ✅{name}</b> Buy!\n\n"
-                                        f"{'🟢'*9}\n"
-                                        f"💵 {format_with_unicode(sol_amount)} <b>SOL</b>\n"
-                                        f"🪙{format_number(token_amount)} <b>{symbol}</b>\n"
-                                        # f"🔷${usd_value_bought:.2f}\n"
-                                        # f"MKT Cap : ${formatted_market_cap}\n\n"
+                                        f"{'🟢'*calc}\n"
+                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(usd_value_bought)}\n"
+                                        f"MKT Cap : ${special_format(mkt_cap)}\n\n"
                                         f"🦎{chart} 🔷{trend}"
                                     )
-                            await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
+
+                            try:
+                                if message:
+                                    media = fetch_media_from_db(chat_id)
+                                    if media:
+                                        file_id, file_type = media
+                                        if file_type == 'photo':
+                                            await context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML')
+
+                                        elif file_type == 'gif':
+                                            await context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML')
+                                    else:
+                                        print("No media found in the database for this group.")
+                                        await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                                    # print('here:',message)
+                                    # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+                            except Exception as e:
+                                print('thise',e)
+                            # await context.bot.send_message(chat_id=chat_id, text=message,disable_web_page_preview=True,parse_mode='HTML')
 
                     else:
                         print('I think it is a failed transaction or sell')
@@ -2565,7 +3326,9 @@ async def sol_query(update:Update,context:ContextTypes.DEFAULT_TYPE):
         context.user_data['state'] = FOR_PINK
 
     elif query.data == 'Dex':
-        await query.edit_message_text(text="➡[🌊Dexes] Coming soon‼️‼️")
+        await query.edit_message_text(text="➡[🌊Dexes] Token address?")
+        context.user_data['state'] = FOR_DEXES
+
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id in stop_events:
@@ -3124,7 +3887,46 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 except Exception as e:
                     await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
                     print(e)
+            elif context.user_data['state'] == FOR_DEXES:
+                context.user_data['message'] = message_text 
+                try:
+                    solana_address = context.user_data['message']
+                    print(solana_address)
+                    get_account_info(solana_address)
+                    sol_call= check_group_exists(chat_id)
+                    if  sol_call == 'good':
+                        sol_db_token = fetch_token_address(chat_id)
+                        # sol_block_chain = 'solana'
+                        print('user already exist')
+                        await context.bot.send_message(chat_id=chat_id, text=f'❗️Bot already in use in this group for token {sol_db_token}',parse_mode='HTML',disable_web_page_preview=True)
+                    else:
+                        sol_name,sol_symbol = get_token_info(solana_address,META_DATA_PROGRAM)
+                        sol_done=insert_user(chat_id, solana_address,'','solana')
+                        sol_db_token = fetch_token_address(chat_id)
+                        sol_respnse = (
+                                    f"🎯 Escobar is now tracking\n"
+                                    f"📈{sol_db_token}\n"
+                                    f"✅NAME : {sol_name}\n"
+                                    f"🔣SYMBOL : {sol_symbol}\n"
+                                )
+                        await context.bot.send_message(chat_id=chat_id, text=sol_respnse,parse_mode='HTML',disable_web_page_preview=True)
+                        btn2= InlineKeyboardButton("🟢 BuyBot Settings", callback_data='buybot_settings')
+                        btn9= InlineKeyboardButton("🔴 Close menu", callback_data='close_menu')
 
+                        row2= [btn2]
+                        row9= [btn9]
+                        reply_markup_pair = InlineKeyboardMarkup([row2,row9])
+
+
+                        await update.message.reply_text(
+                            '🛠 Settings Menu:',
+                            reply_markup=reply_markup_pair
+                        )
+                        start_dexes(solana_address,context,chat_id,sol_name,sol_symbol)
+                        context.user_data.clear()
+                except Exception as e:
+                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
+                    print(e)
             elif context.user_data['state'] == FOR_TON:
                 context.user_data['message'] = message_text
                 try:
@@ -3163,6 +3965,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             print('ton_started')
                             start_ton_logging(ton_db_token,context,chat_id)
                             context.user_data.clear()
+                    else:
+                        print(valid_.status_code)
+                        print(valid_.json())
                 except Exception as e:
                     await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     print('for ton',e)
