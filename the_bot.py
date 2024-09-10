@@ -1419,7 +1419,7 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
                 else:
                     message = (
                         f"<b> ✅{name}</b> Buy!\n\n"
-                        f"{'🟢'*9}\n"
+                        f"{'🟢'*calc}\n"
                         f"💵 {special_format(amount1In * 10**-18)} <b>ETH</b>\n"
                         f"🪙{special_format(amount0Out* 10**-dec)} <b>{symbol}</b>\n"
                         f"👤{sign}|{txn}\n"
@@ -2567,7 +2567,7 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
 
                 if prev_resp != signature:
                     if swap_kind !='sell':
-                        chart =f"<a href='https://dexscreener.com/ton/{pool_address}'>Chart</a>"
+                        chart =f"<a href='https://dexscreener.com/solana/{pool_address}'>Chart</a>"
                         trend_url=f"https://t.me/BSCTRENDING/5431871"
                         trend=f"<a href='{trend_url}'>Trending</a>"
                         thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
@@ -2716,14 +2716,15 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
                 swap_event = last_trades['data'][-1]
                 signature = swap_event['attributes']['tx_hash']
                 swap_kind = swap_event['attributes']['kind']
+                the_signer = swap_event['attributes']['tx_from_address']
                 if prev_resp != signature:
                     if swap_kind !='sell':
                         chart =f"<a href='https://dexscreener.com/ton/{pool_address}'>Chart</a>"
                         trend_url=f"https://t.me/BSCTRENDING/5431871"
                         trend=f"<a href='{trend_url}'>Trending</a>"
-                        # thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
-                        # sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
-                        txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                        thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                        sign =f"<a href='https://tonviewer.com/{the_signer}'>{thenew_signer}</a>" 
+                        txn = f"<a href='https://tonviewer.com/transaction/{signature}'>TXN</a>"
                         ton_amount = swap_event['attributes']['from_token_amount']
                         token_amount = swap_event['attributes']['to_token_amount']
                         usd_value_bought=float(swap_event['attributes']['volume_in_usd'])
@@ -2749,7 +2750,7 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
                                     f"{emoji*calc}\n"
                                     f"💵 {special_format(ton_amount)} <b>TON</b>\n",
                                     f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{'sign'}|{txn}\n"
+                                    f"👤{sign}|{txn}\n"
                                     f"🔷${special_format(usd_value_bought)}\n"
                                     f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
                                     f"🦎{chart} 🔷{trend}"
@@ -2761,7 +2762,7 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
                                     f"{'🟢'*calc}\n"
                                     f"💵 {special_format(ton_amount)} <b>TON</b>\n"
                                     f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{'sign'}|{txn}\n"
+                                    f"👤{sign}|{txn}\n"
                                     f"🔷${special_format(usd_value_bought)}\n"
                                     f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
                                     f"🦎{chart} 🔷{trend}"
@@ -2978,9 +2979,9 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:   
             bot_chat_member = await context.bot.get_chat_member(chat_id, context.bot.id)
             if bot_chat_member.status == "administrator":
-                # group_token = fetch_token_address(chat_id)
+                group_token = fetch_token_address(chat_id)
                 # Ask for confirmation
-                text = "Are you sure you want to remove token : {group_token}?"
+                text = f"Are you sure you want to remove token : {group_token}?"
                 keyboard = [
                     [InlineKeyboardButton("✅Yes", callback_data='confirm_remove')],
                     [InlineKeyboardButton("❌No", callback_data='cancel_remove')],
