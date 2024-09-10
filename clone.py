@@ -3,10 +3,11 @@ import logging
 from telegram import Chat, ChatMember, ChatMemberUpdated, Update,InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes,ChatMemberHandler,CallbackQueryHandler,ConversationHandler,MessageHandler,filters
 import re
-import threading
 from web3 import Web3
 import requests
 import time
+import aiomysql
+import asyncio
 import mysql.connector
 from mysql.connector import Error
 import asyncio
@@ -33,7 +34,7 @@ from telegram.error import TimedOut
 from requests.exceptions import ConnectTimeout
 from decimal import Decimal, getcontext
 PASSWORD_ = 'Testimonyalade@2003'
-TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
+TOKEN_KEY_= '6717839241:AAEWxg1NVhJSLbe7BeFvu8z2b_hc1OJ-Eso'
 load_dotenv()
 stop_events = {}
 CG = CoinGeckoAPI()
@@ -46,14 +47,24 @@ WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 SEND_MEDIA = 'SEND_MEDIA'
 client = Client("https://api.mainnet-beta.solana.com")
 #Database connection setup
+# db_config = {
+#     'user': 'root',
+#     'password': PASSWORD_,
+#     'host': '67.205.191.138',
+#     'database': 'Escobar',
+    
+# }
+
 db_config = {
     'user': 'root',
     'password': PASSWORD_,
-    'host': '67.205.191.138',
-    'database': 'Escobar',
+    'host': 'localhost',
+    'database': 'Escobar_bot',
+    
 }
 
 
+## ============================= Database ================================#
 # Function to create a database connection
 def create_connection():
     try:
@@ -127,8 +138,6 @@ def create_tables():
             cursor.close()
             conn.close()
 
-# Call the function to create tables
-# Enable logging
 def download_file(file_url):
     response = requests.get(file_url)
     if response.status_code == 200:
@@ -218,6 +227,7 @@ def get_solana_token_price(token_address):
 def get_total_solana_supply(mint):
         _supply = client.get_token_supply(Pubkey.from_string(str(mint)))
         return _supply.value.ui_amount
+
 
 
 def unpack_metadata_account(data):
@@ -511,7 +521,6 @@ def check_group_exists(group_id):
             FROM chat_info
             WHERE chat_id = %s;
             """
-
             # Execute the SQL command
             cursor.execute(check_query, (group_id,))
 
@@ -523,14 +532,12 @@ def check_group_exists(group_id):
                 return 'good'
             else:
                 return 'bad'
-
     except Error as e:
         print(f"Error: {e}")
     finally:
         if for_connect.is_connected():
             cursor.close()
             for_connect.close()
-            print("Database connection closed.")
 
 
 def fetch_token_address(group_id):
@@ -662,7 +669,7 @@ logger = logging.getLogger(__name__)
 UNISWAP_FACTORY_ADDRESS = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f'
 PANCAKESWAP_FACTORY_ADDRESS = Web3.to_checksum_address('0xca143ce32fe78f1f7019d7d551a6402fc5350c73')
 
-# Uniswap V2 Factory ABI (simplified version)
+
 UNISWAP_FACTORY_ABI = '''
 [
     {
@@ -693,7 +700,7 @@ UNISWAP_FACTORY_ABI = '''
     }
 ]
 '''
-# ERC-20 token ABI (simplified version for name and symbol)
+
 ERC_20_ABI = '''
 [
     {
@@ -1864,11 +1871,11 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
                     message = (
                         f"<b> ✅{name}</b> Buy!\n\n"
                         f"{'🟢'*calc}\n"
-                        f"💵 {special_format(amount1In * 10**-18)} <b>ETH</b>\n"
-                        f"🪙{special_format(amount0Out* 10**-dec)} <b>{symbol}</b>\n"
+                        f"💵 {(amount1In * 10**-18)} <b>ETH</b>\n"
+                        f"🪙{(amount0Out* 10**-dec)} <b>{symbol}</b>\n"
                         f"👤{sign}|{txn}\n"
-                        f"🔷${special_format(usd_value_bought)}\n"
-                        f"🧢MKT Cap : ${special_format(MKT_cap)}\n\n"
+                        f"🔷${(usd_value_bought)}\n"
+                        f"🧢MKT Cap : ${(MKT_cap)}\n\n"
                         f"🦎{chart} 🔷{trend}"
                     )
                     return message
@@ -1884,6 +1891,7 @@ async def log_loop(event_filter, poll_interval, context, chat_id,decimal,name,sy
             for event in event_filter.get_new_entries():
                 message = handle_event(event,decimal,name,symbol,addr,pair,chat_id)
                 if message:
+                    print(message)
                     # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
                     media = fetch_media_from_db(chat_id)
                     if media:
@@ -1901,11 +1909,13 @@ async def log_loop(event_filter, poll_interval, context, chat_id,decimal,name,sy
                 else:
                     print('no message')
             await asyncio.sleep(poll_interval)
-    except Exception as e:
-        print('here for sure: ',e)
-        await asyncio.sleep(2)
-        await log_loop(event_filter,poll_interval, context, chat_id,decimal,name,symbol,addr,pair)
-        print('over again')
+    except IndexError:
+        pass
+    # except Exception as e:
+    #     print('here for sure: ',e)
+    #     await asyncio.sleep(2)
+    #     await log_loop(event_filter,poll_interval, context, chat_id,decimal,name,symbol,addr,pair)
+    #     print('over again')
 
 async def bsc_log_loop(swap_event_filter, poll_interval,context,chat_id,bsc_addr,bsc_pair,name,symbol,decimal,stop_event):
     try:
@@ -3980,10 +3990,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Operation cancelled.")
     return ConversationHandler.END
 
-
 def main():
     create_tables()
-    # token_key = os.getenv('TOKEN_KEY')
     app = ApplicationBuilder().token(TOKEN_KEY_).build()
     #========= Handlers =============#
     app.add_handler(CommandHandler("start", start))
