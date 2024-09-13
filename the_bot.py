@@ -2579,8 +2579,6 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
                         fdv = token_pools['data'][-1]['attributes']['fdv_usd']
                         print(mkt_cap)
                         print(fdv)
-                        with open('k.json','w')as file:
-                            json.dump(last_trades['data'],file,indent=4)
                         if mkt_cap == None:
                             mkt_cap = fdv
                         emoji = get_emoji_from_db(chat_id)
@@ -2724,8 +2722,6 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
             last_trades = get_last_pools_trades(pool_address)
             token_pools = get_token_pools(token_address, page="1")
             if last_trades:
-                with open('k.json','w')as file:
-                    json.dump(last_trades,file,indent =4)
                 swap_event = last_trades['data'][0] 
                 signature = swap_event['attributes']['tx_hash']
                 list_sig.append(signature)
@@ -2762,7 +2758,7 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
                                 message = (
                                     f"<b> ✅{name}</b> Buy!\n\n"
                                     f"{emoji*calc}\n"
-                                    f"💵 {special_format(ton_amount)} <b>TON</b>\n",
+                                    f"💵 {special_format(ton_amount)} <b>TON</b>\n"
                                     f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
                                     f"👤{sign}|{txn}\n"
                                     f"🔷${special_format(usd_value_bought)}\n"
