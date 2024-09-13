@@ -1082,7 +1082,6 @@ async def hunt_ton(token_address,context,chat_id,stop_event):
             result = result[-1]
             with open('h.json','w')as file:
                 json.dump(result,file,indent=4)
-
             response = f'''amount_in = {result['amountIn']}
         amount_out = {result['amountOut']}'''
             # Check if the current response is different from the previous one
@@ -1445,7 +1444,6 @@ BASE_PAIR_ABI = [
 def calculate_asset_valu_mc_cap(amount):
     price_per_sol = cg.get_price("solana", "usd")["solana"]["usd"]
     return float(amount) * float(price_per_sol)
-
 
 
 def get_token_supply_mc_cap(mint):

@@ -1664,8 +1664,8 @@ def handle_base_swap_event(event,decimal,name,symbol,base_addr,base_pair,chat_id
             trend=f"<a href='{trend_url}'>Trending</a>"
             chart=f'<a href="{chart_url}">Chart</a>'
             thenew_signer = f"{to[:7]}...{to[-4:]}"
-            sign =f"<a href='https://bscscan.com/address/{to}'>{thenew_signer}</a>" 
-            txn = f"<a href='https://bscscan.com/tx/{TXN}'>TXN</a>"
+            sign =f"<a href='https://basescan.org/address/{to}'>{thenew_signer}</a>" 
+            txn = f"<a href='https://basescan.org/tx/{TXN}'>TXN</a>"
             emoji = get_emoji_from_db(chat_id)
             number = amount0_in * 10**-18
             # ew_weth =f"{number:.20f}"
@@ -2231,7 +2231,7 @@ async def pinky(token_address, context, chat_id,name,symbol,stop_event):
                                 pass
                         except KeyError:
                             continue
-                    chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                    chart =f"<a href='https://www.pink.meme/solana/token/{token_address}'>Chart</a>"
                     trend_url=f"https://t.me/BSCTRENDING/5431871"
                     trend=f"<a href='{trend_url}'>Trending</a>"
                     thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
@@ -2532,8 +2532,6 @@ class AxiosInstance:
 # Create instances for each base URL
 axios_instance = AxiosInstance("https://api.geckoterminal.com/api/v2/")
 # axios_instance_ton_viewer = AxiosInstance("https://tonapi.io/v2/")
-
-
 def api_limit_wait():
     time.sleep(1)  # Adjust the sleep time according to your API rate limits
 def solana_get_token(address):
@@ -2560,7 +2558,7 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
             last_trades = solana_get_last_pools_trades(pool_address)
             token_pools = solana_get_token_pools(token_address, page="1")
             if last_trades:
-                swap_event = last_trades['data'][-1]
+                swap_event = last_trades['data'][0]
                 signature = swap_event['attributes']['tx_hash']
                 swap_kind = swap_event['attributes']['kind']
                 the_signer = swap_event['attributes']['tx_from_address']
@@ -2579,6 +2577,10 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
                         print('buy!!')
                         mkt_cap = token_pools['data'][-1]['attributes']['market_cap_usd']
                         fdv = token_pools['data'][-1]['attributes']['fdv_usd']
+                        print(mkt_cap)
+                        print(fdv)
+                        with open('k.json','w')as file:
+                            json.dump(last_trades['data'],file,indent=4)
                         if mkt_cap == None:
                             mkt_cap = fdv
                         emoji = get_emoji_from_db(chat_id)
@@ -2595,7 +2597,7 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
                                 message = (
                                     f"<b> ✅{name}</b> Buy!\n\n"
                                     f"{emoji*calc}\n"
-                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n",
+                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
                                     f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
                                     f"👤{sign}|{txn}\n"
                                     f"🔷${special_format(int(usd_value_bought))}\n"
@@ -2613,31 +2615,37 @@ async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_ev
                                     f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
                                     f"🦎{chart} 🔷{trend}"
                                 )
-                        # print(message)
-                            if message:
-                                    media = fetch_media_from_db(chat_id)
-                                    if media:
-                                        file_id, file_type = media
-                                        if file_type == 'photo':
-                                            asyncio.run_coroutine_threadsafe(
-                                                context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
-                                            asyncio.get_event_loop()
-                                                )
-                                        elif file_type == 'gif':
-                                            asyncio.run_coroutine_threadsafe(
-                                                context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
-                                            asyncio.get_event_loop()
-                                                )
-                                    else:
-                                        print("No media found in the database for this group.")
-                                        asyncio.run_coroutine_threadsafe(
-                                            context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
-                                        asyncio.get_event_loop()
-                                                )
+                        if message:
+                            print('hereeeeeeeeeeeeeeeeee')
+                            media = fetch_media_from_db(chat_id)
+                            if media:
+                                print(message)
+                                file_id, file_type = media
+                                if file_type == 'photo':
+                                    print('this')
+
+                                    asyncio.run_coroutine_threadsafe(
+                                        context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
+                                    asyncio.get_event_loop()
+                                        )
+                                elif file_type == 'gif':
+                                    print('ghgh')
+                                    asyncio.run_coroutine_threadsafe(
+                                        context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
+                                    asyncio.get_event_loop()
+                                        )
+                                else:
+                                    print('idont know')
+                            else:
+                                print("No media found in the database for this group.")
+                                asyncio.run_coroutine_threadsafe(
+                                    context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
+                                asyncio.get_event_loop()
+                                        )
                     prev_resp = signature
             else:
                 print("Failed to retrieve last pool trades.")   
-            await asyncio.sleep(3)  # Adjust the interval as needed
+            await asyncio.sleep(2)  # Adjust the interval as needed
     except Exception as e:
         print(e)
 
@@ -2661,6 +2669,7 @@ def start_dexes(pool_address,token_address,context, chat_id, name, symbol):
 
 
 ## ====================================== TON =========================================##
+#============================== ==========================================#
 api_count = 0
 
 class AxiosInstance:
@@ -2706,15 +2715,20 @@ def get_last_pools_trades(address):
     api_count += 1
     api_limit_wait()
     return axios_instance.get(f"networks/ton/pools/{address}/trades")
+
 async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_event):
     try:
+        list_sig = []
         prev_resp =None
         while not stop_event.is_set():
             last_trades = get_last_pools_trades(pool_address)
             token_pools = get_token_pools(token_address, page="1")
             if last_trades:
-                swap_event = last_trades['data'][-1]
+                with open('k.json','w')as file:
+                    json.dump(last_trades,file,indent =4)
+                swap_event = last_trades['data'][0] 
                 signature = swap_event['attributes']['tx_hash']
+                list_sig.append(signature)
                 swap_kind = swap_event['attributes']['kind']
                 the_signer = swap_event['attributes']['tx_from_address']
                 if prev_resp != signature:
@@ -2767,7 +2781,10 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
                                     f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
                                     f"🦎{chart} 🔷{trend}"
                                 )
-                    
+                            # for i in list_sig:
+                            #     if i!= prev_resp:
+                            #         print(i)
+                            #     prev_resp = i 
                             if message:
                                 media = fetch_media_from_db(chat_id)
                                 if media:
@@ -2795,7 +2812,7 @@ async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_even
     except Exception as e:
         print(e)
 
-def start_ton(pool_address,token_address,context, chat_id, name, symbol):
+def start_ton(pool_address,token_address, context, chat_id,name,symbol):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
     stop_event = stop_events[chat_id]
@@ -2806,7 +2823,7 @@ def start_ton(pool_address,token_address,context, chat_id, name, symbol):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(
-            ton(pool_address,token_address, context, chat_id, name, symbol, stop_event)
+            ton(pool_address,token_address, context, chat_id,name,symbol,stop_event)
         )
 
     # Start the thread
@@ -3160,7 +3177,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 context.user_data['awaiting_number'] = False
         except Exception as e:
             print(e)
-            await update.message.reply_text('Send a valid number')
+            await update.message.reply_text('An Error Occured please try again')
             context.user_data['awaiting_number'] = False
     elif update.message.text and update.message.text.startswith("http"):
             file_url = update.message.text
@@ -3226,7 +3243,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                     context.user_data.clear()
                     except Exception as e:
                         print('error ',e)
-                        await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                        await context.bot.send_message(chat_id=chat_id, text='An Error Occured type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                         context.user_data.clear()
 
             elif context.user_data['state'] == FOR_BSC:
@@ -3236,7 +3253,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     bsc_pair_address = get_pair_address_bsc(bsc_token_address)
                     bsc_block_chain = 'bsc'
                 except Exception as e:
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
                 try:
                     if bsc_pair_address == '0x0000000000000000000000000000000000000000':
                         response ="No pair exists for the given token address and WBNB."
@@ -3279,7 +3296,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                 context.user_data.clear()
                 except Exception as e:
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()
             elif context.user_data['state'] == FOR_BASE:
                 context.user_data['message'] = message_text 
@@ -3288,12 +3305,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     base_pair_address = get_base_pair_address(base_token_address)
                     base_block_chain = 'base'
                 except Exception as e:
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
                 try:
 
                     if base_pair_address == '0x0000000000000000000000000000000000000000':
                         print("No pair exists for the given token address and Base.")
-                        await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
+                        await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different Token',parse_mode='HTML',disable_web_page_preview=True)
                     else:
                         base_token_address =context.user_data['message']
                         print(f"The pair address for the given token and Base is: {base_pair_address}")
@@ -3334,7 +3351,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                 context.user_data.clear()
                 except Exception as e:
                         print('error ',e)
-                        await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                        await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                         context.user_data.clear()
 
             elif context.user_data['state'] == FOR_PUMP:
@@ -3376,7 +3393,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         context.user_data.clear()
                 except Exception as e:
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()
 
             elif context.user_data['state'] == FOR_MOON:
@@ -3417,7 +3434,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 except Exception as e:
                     # await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()
 
             elif context.user_data['state'] == FOR_PINK:
@@ -3457,7 +3474,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         context.user_data.clear()
                 except Exception as e:
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()
             
             elif context.user_data['state'] == PINK_LUNCH:
@@ -3522,7 +3539,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                 context.user_data.clear()
                 except Exception as e:
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()
 
             elif context.user_data['state'] == FOR_TON:
@@ -3568,7 +3585,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                 pair_address = token_pools['data'][0]['attributes']['address']
                                 print(pair_address)
 
-                                start_ton(pair_address,ton_address,context,chat_id,name,symbol)
+                                start_ton(pair_address,ton_address, context, chat_id,name,symbol)
                                 context.user_data.clear()
 
                             
@@ -3580,7 +3597,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             await context.bot.send_message(chat_id=chat_id, text='Failed to retrieve token information.',parse_mode='HTML',disable_web_page_preview=True)
                 except Exception as e:
                     print(e)
-                    await context.bot.send_message(chat_id=chat_id, text='Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                    await context.bot.send_message(chat_id=chat_id, text='An Error Occured / Invalid Token address type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                     context.user_data.clear()      
 def main():
     create_tables()
