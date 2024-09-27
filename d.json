@@ -1,0 +1,14 @@
+{
+    "jsonrpc": "2.0",
+    "result": [
+        {
+            "blockTime": 1727471368,
+            "confirmationStatus": "finalized",
+            "err": null,
+            "memo": null,
+            "signature": "9suTWZe9ycy6rfyxKV7442NcdXryXKwNn6eGFy2N88nZC4RC5Jx9ck47nMr2hCX5WqTBZFCUo2khv4Cw2dNWTX3",
+            "slot": 292371622
+        }
+    ],
+    "id": 1
+}

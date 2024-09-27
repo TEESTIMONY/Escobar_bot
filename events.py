@@ -1,105 +1,59 @@
-import asyncio
-from utils import get_token_price, get_weth_price_in_usd, format_market_cap, special_format
-# from data_base import fetch_media_from_db, get_emoji_from_db, retrieve_group_number, chat_id_exists
-from web3 import Web3
-from utils import CONTRACT_ABI
-import threading
+import requests
+import random
+import time
+proxies_list = [
+    {"http": "http://nejpopbg:zdtwx7to1lgq@199.187.190.42:7145", "https": "http://nejpopbg:zdtwx7to1lgq@199.187.190.42:7145"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@103.4.248.119:6427", "https": "http://nejpopbg:zdtwx7to1lgq@103.4.248.119:6427"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.228.35.249:6924", "https": "http://nejpopbg:zdtwx7to1lgq@207.228.35.249:6924"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@198.145.102.125:5481", "https": "http://nejpopbg:zdtwx7to1lgq@198.145.102.125:5481"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@192.46.186.229:5578", "https": "http://nejpopbg:zdtwx7to1lgq@192.46.186.229:5578"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@63.246.151.5:5336", "https": "http://nejpopbg:zdtwx7to1lgq@63.246.151.5:5336"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@69.30.74.116:5826", "https": "http://nejpopbg:zdtwx7to1lgq@69.30.74.116:5826"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.228.8.72:5158", "https": "http://nejpopbg:zdtwx7to1lgq@207.228.8.72:5158"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@192.46.186.124:5473", "https": "http://nejpopbg:zdtwx7to1lgq@192.46.186.124:5473"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@63.246.151.165:5496", "https": "http://nejpopbg:zdtwx7to1lgq@63.246.151.165:5496"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@103.196.8.15:5415", "https": "http://nejpopbg:zdtwx7to1lgq@103.196.8.15:5415"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@69.30.76.103:6499", "https": "http://nejpopbg:zdtwx7to1lgq@69.30.76.103:6499"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@62.164.241.211:8444", "https": "http://nejpopbg:zdtwx7to1lgq@62.164.241.211:8444"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.117.52.230:6267", "https": "http://nejpopbg:zdtwx7to1lgq@45.117.52.230:6267"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@69.30.74.38:5748", "https": "http://nejpopbg:zdtwx7to1lgq@69.30.74.38:5748"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@192.53.64.186:5464", "https": "http://nejpopbg:zdtwx7to1lgq@192.53.64.186:5464"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@130.180.239.17:6656", "https": "http://nejpopbg:zdtwx7to1lgq@130.180.239.17:6656"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@103.196.8.52:5452", "https": "http://nejpopbg:zdtwx7to1lgq@103.196.8.52:5452"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.228.8.77:5163", "https": "http://nejpopbg:zdtwx7to1lgq@207.228.8.77:5163"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.228.35.202:6877", "https": "http://nejpopbg:zdtwx7to1lgq@207.228.35.202:6877"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@199.187.190.72:7175", "https": "http://nejpopbg:zdtwx7to1lgq@199.187.190.72:7175"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@69.30.77.184:6924", "https": "http://nejpopbg:zdtwx7to1lgq@69.30.77.184:6924"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@168.158.184.231:6242", "https": "http://nejpopbg:zdtwx7to1lgq@168.158.184.231:6242"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@130.180.255.8:9699", "https": "http://nejpopbg:zdtwx7to1lgq@130.180.255.8:9699"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@82.140.159.172:6172", "https": "http://nejpopbg:zdtwx7to1lgq@82.140.159.172:6172"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.196.42.35:5424", "https": "http://nejpopbg:zdtwx7to1lgq@45.196.42.35:5424"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.228.35.131:6806", "https": "http://nejpopbg:zdtwx7to1lgq@207.228.35.131:6806"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@103.73.34.136:5536", "https": "http://nejpopbg:zdtwx7to1lgq@103.73.34.136:5536"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@5.182.198.82:5658", "https": "http://nejpopbg:zdtwx7to1lgq@5.182.198.82:5658"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.135.196.39:6954", "https": "http://nejpopbg:zdtwx7to1lgq@207.135.196.39:6954"},
+]
 
-import logging
 
+def get_solana_price():
+    
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
 
-async def handle_event(event, decimal, name, symbol, addr, pair, chat_id):
+    # Randomly choose a proxy from the list
+    proxy = random.choice(proxies_list)
+    
     try:
-        trans_hash = event['transactionHash']
-        TXN = trans_hash.hex()
-        args = event['args']
-        amount0In = args['amount0In']
-        amount1In = args['amount1In']
-        amount0Out = args['amount0Out']
-        amount1Out = args['amount1Out']
-        to = args['to']
-        if (amount0In < amount0Out) and (amount1In >= amount1Out):
-            current_price_usd = get_token_price(addr, pair)
-            weth_price_usd = get_weth_price_in_usd()
-            contract = Web3.eth.contract(address=addr, abi=CONTRACT_ABI)
-            total_supply = Web3.from_wei(contract.functions.totalSupply().call(), 'ether')
-            burn_address = '0x0000000000000000000000000000000000000000'
-            burned_tokens = contract.functions.balanceOf(burn_address).call()
-            circulating_supply = total_supply - burned_tokens
-            MKT_cap = float(circulating_supply) * current_price_usd
-            msg = (
-                f'''
-{amount0In}
-{amount0Out}
-{amount1In}
-{amount1Out}'''
-            )
-            return msg
-            # formatted_market_cap = format_market_cap(MKT_cap)
-            # usd_value_bought = (float(amount1In) * 10**-18) * weth_price_usd
-            # dec = int(decimal)
-            # buy_step_number = retrieve_group_number(chat_id)
-            # if buy_step_number is None:
-            #     buy_step_number = 10
-            # calc = int(usd_value_bought / buy_step_number)
-
-            # emoji = get_emoji_from_db(chat_id)
-            # if chat_id_exists(chat_id):
-            #     if emoji:
-            #         return (
-            #             f"<b> ✅{name}</b> Buy!\n\n"
-            #             f"{emoji * calc}\n"
-            #             f"💵 {special_format(amount1In * 10**-18)} <b>ETH</b>\n"
-            #             f"🪙{special_format(amount0Out * 10**-dec)} <b>{symbol}</b>\n"
-            #             f"👤<a href='https://etherscan.io/address/{to[:7]}...{to[-4:]}'>{to[:7]}...{to[-4:]}</a>\n"
-            #             f"🔷${special_format(usd_value_bought)}\n"
-            #             f"🧢MKT Cap : ${special_format(MKT_cap)}\n\n"
-            #             f"🦎<a href='https://dexscreener.com/ethereum/{pair}'>Chart</a> 🔷<a href='https://t.me/BSCTRENDING/5431871'>Trending</a>"
-            #         )
-            #     else:
-            #         return (
-            #             f"<b> ✅{name}</b> Buy!\n\n"
-            #             f"{'🟢' * calc}\n"
-            #             f"💵 {(amount1In * 10**-18)} <b>ETH</b>\n"
-            #             f"🪙{(amount0Out * 10**-dec)} <b>{symbol}</b>\n"
-            #             f"👤<a href='https://etherscan.io/address/{to[:7]}...{to[-4:]}'>{to[:7]}...{to[-4:]}</a>\n"
-            #             f"🔷${(usd_value_bought)}\n"
-            #             f"🧢MKT Cap : ${(MKT_cap)}\n\n"
-            #             f"🦎<a href='https://dexscreener.com/ethereum/{pair}'>Chart</a> 🔷<a href='https://t.me/BSCTRENDING/5431871'>Trending</a>"
-            #         )
-    except Exception as e:
-        print(e)
-
-async def log_loop(event_filter, poll_interval):#, context, chat_id, decimal, name, symbol, addr, pair, stop_event
-    while True:
-        print('still running')
-        for event in event_filter.get_new_entries():
-            message = await handle_event(event) #, decimal, name, symbol, addr, pair, chat_id
-            if message:
-                print(message)
-                # media = fetch_media_from_db(chat_id)
-                # if media:
-                #     file_id, file_type = media
-                #     if file_type == 'photo':
-                #         await context.bot.send_photo(chat_id=chat_id, photo=file_id, caption=message, parse_mode='HTML')
-                #     elif file_type == 'gif':
-                #         await context.bot.send_document(chat_id=chat_id, document=file_id, caption=message, parse_mode='HTML')
-                # else:
-                #     await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML', disable_web_page_preview=True)
-        await asyncio.sleep(poll_interval)
-
-
-def start_logging(event_filter, poll_interval,):# context, chat_id,decimal,name,symbol,addr,pair
-    # if chat_id not in stop_events:
-    #     stop_events[chat_id] = asyncio.Event()
-    # stop_event = stop_events[chat_id]
-    # stop_event.clear()
-    try:
-
-        asyncio.run_coroutine_threadsafe(
-            log_loop(event_filter, poll_interval),#, context, chat_id,decimal,name,symbol,addr,pair,stop_event
-            asyncio.get_event_loop()
-        )
-
-    except Exception as e:
-        logging.error(f"Error in risky operation: {e}", exc_info=True)
+        response = requests.get(url, proxies=proxy)
+        response.raise_for_status()  # Check if the request was successful
+        data = response.json()
+        return data.get('solana', {}).get('usd', 'Price not available')
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching price data:\n{e}")
+        return None
+# Example usage
+while True:
+    price = get_solana_price()
+    if price is not None:
+        print(f"The current price of Solana is ${price}")
+    else:
+        print("Failed to retrieve the price.")

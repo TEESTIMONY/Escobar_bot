@@ -11,7 +11,8 @@ import threading
 import asyncio
 import mysql.connector
 from mysql.connector import Error
-import asyncio
+import itertools
+import aiohttp
 from solana.rpc.api import Client
 from solders.pubkey import Pubkey #type:ignore
 from solana.rpc.websocket_api import connect
@@ -31,6 +32,7 @@ import io
 from dotenv import load_dotenv
 import os 
 import json
+import random
 from telegram.error import TimedOut
 from requests.exceptions import ConnectTimeout
 from decimal import Decimal, getcontext
@@ -39,7 +41,7 @@ CG = CoinGeckoAPI()
 cg = CoinGeckoAPI()
 from requests.exceptions import HTTPError
 PASSWORD_ = 'Testimonyalade@2003'
-TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
+TOKEN_KEY_= '6717839241:AAEWxg1NVhJSLbe7BeFvu8z2b_hc1OJ-Eso'
 CLIENT = Client("https://api.mainnet-beta.solana.com")
 RAYDIUM_POOL = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 RAYDIUM_AUTHORITY = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
@@ -48,21 +50,63 @@ WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 SEND_MEDIA = 'SEND_MEDIA'
 stop_events = {}
 
-# ============== Database ============================#
-# db_config = {
-#     'user': 'root',
-#     'password': PASSWORD_,
-#     'host': 'localhost',
-#     'database': 'Escobar_bot',
-    
-# }
 
+#======================== proxies ======================================== #
+
+proxies_list = [
+    {"http": "http://nejpopbg:zdtwx7to1lgq@91.123.9.23:6565", "https": "http://nejpopbg:zdtwx7to1lgq@91.123.9.23:6565"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@64.137.8.27:6709", "https": "http://nejpopbg:zdtwx7to1lgq@64.137.8.27:6709"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@104.239.33.131:6486", "https": "http://nejpopbg:zdtwx7to1lgq@104.239.33.131:6486"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@107.173.137.30:6284", "https": "http://nejpopbg:zdtwx7to1lgq@107.173.137.30:6284"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@167.160.180.108:6659", "https": "http://nejpopbg:zdtwx7to1lgq@167.160.180.108:6659"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@217.69.127.127:6748", "https": "http://nejpopbg:zdtwx7to1lgq@217.69.127.127:6748"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@104.222.161.188:6320", "https": "http://nejpopbg:zdtwx7to1lgq@104.222.161.188:6320"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.131.94.130:6117", "https": "http://nejpopbg:zdtwx7to1lgq@45.131.94.130:6117"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.12.179.225:6756", "https": "http://nejpopbg:zdtwx7to1lgq@45.12.179.225:6756"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@109.196.160.167:5913", "https": "http://nejpopbg:zdtwx7to1lgq@109.196.160.167:5913"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@194.116.250.229:6687", "https": "http://nejpopbg:zdtwx7to1lgq@194.116.250.229:6687"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@38.154.227.209:5910", "https": "http://nejpopbg:zdtwx7to1lgq@38.154.227.209:5910"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@207.244.217.83:6630", "https": "http://nejpopbg:zdtwx7to1lgq@207.244.217.83:6630"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.43.65.20:6534", "https": "http://nejpopbg:zdtwx7to1lgq@45.43.65.20:6534"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@107.175.119.244:6772", "https": "http://nejpopbg:zdtwx7to1lgq@107.175.119.244:6772"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@64.137.31.163:6777", "https": "http://nejpopbg:zdtwx7to1lgq@64.137.31.163:6777"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@104.239.43.60:5788", "https": "http://nejpopbg:zdtwx7to1lgq@104.239.43.60:5788"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@161.123.5.200:5249", "https": "http://nejpopbg:zdtwx7to1lgq@161.123.5.200:5249"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@185.118.7.126:6152", "https": "http://nejpopbg:zdtwx7to1lgq@185.118.7.126:6152"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@107.181.141.198:6595", "https": "http://nejpopbg:zdtwx7to1lgq@107.181.141.198:6595"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@184.174.24.103:6679", "https": "http://nejpopbg:zdtwx7to1lgq@184.174.24.103:6679"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@209.242.203.201:6916", "https": "http://nejpopbg:zdtwx7to1lgq@209.242.203.201:6916"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@136.0.207.9:6586", "https": "http://nejpopbg:zdtwx7to1lgq@136.0.207.9:6586"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@138.128.153.201:5235", "https": "http://nejpopbg:zdtwx7to1lgq@138.128.153.201:5235"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@23.236.247.79:8111", "https": "http://nejpopbg:zdtwx7to1lgq@23.236.247.79:8111"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@162.218.208.198:6317", "https": "http://nejpopbg:zdtwx7to1lgq@162.218.208.198:6317"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@43.228.237.99:6045", "https": "http://nejpopbg:zdtwx7to1lgq@43.228.237.99:6045"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@173.211.8.37:6149", "https": "http://nejpopbg:zdtwx7to1lgq@173.211.8.37:6149"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@38.153.140.69:8947", "https": "http://nejpopbg:zdtwx7to1lgq@38.153.140.69:8947"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@45.41.172.218:5961", "https": "http://nejpopbg:zdtwx7to1lgq@45.41.172.218:5961"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@138.128.145.61:5980", "https": "http://nejpopbg:zdtwx7to1lgq@138.128.145.61:5980"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@185.72.240.67:7103", "https": "http://nejpopbg:zdtwx7to1lgq@185.72.240.67:7103"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@154.29.65.148:6256", "https": "http://nejpopbg:zdtwx7to1lgq@154.29.65.148:6256"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@89.40.222.12:6388", "https": "http://nejpopbg:zdtwx7to1lgq@89.40.222.12:6388"},
+    {"http": "http://nejpopbg:zdtwx7to1lgq@161.123.215.80:5243", "https": "http://nejpopbg:zdtwx7to1lgq@161.123.215.80:5243"}
+]
+
+proxy_pool = itertools.cycle(proxies_list)
+# ============== Database ============================#
 db_config = {
     'user': 'root',
     'password': PASSWORD_,
-    'host': '67.205.191.138',
-    'database': 'Escobar',
+    'host': 'localhost',
+    'database': 'Escobar_bot',
+    
 }
+
+# db_config = {
+#     'user': 'root',
+#     'password': PASSWORD_,
+#     'host': '67.205.191.138',
+#     'database': 'Escobar',
+# }
 
 connection_pool = pooling.MySQLConnectionPool(pool_name="mypool",
                                               pool_size=32,  # Adjust based on your needs
@@ -196,6 +240,7 @@ def fetch_pair_address_and_blockchain_for_group(chat_id):
             cursor.close()
             to_connect.close()
             print("Database connection closed.")
+
 def retrieve_group_number(group_id):
     conn = create_connection()
     cursor = conn.cursor()
@@ -1329,7 +1374,6 @@ def update_solana_price():
         price = fetch_solana_price()
         save_solana_price_to_db(price)
         time.sleep(120)  # Wait for 2 minutes
-
 def start_price_updater_thread():
     thread = threading.Thread(target=update_solana_price)
     thread.daemon = True  # Daemonize thread to stop it when the main program exits
@@ -1347,6 +1391,10 @@ def get_solana_token_price(token_address):
     else:
         raise Exception("Failed to fetch token data from Dexscreener")
 # ============================ ACTIONS ===================================#
+
+def format_number_with_commas(number):
+    return "{:,}".format(int(number))
+
 
 # ======================== ETH ===============================================#
 
@@ -1389,9 +1437,7 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
             sign =f"<a href='https://etherscan.io/address/{to}'>{thenew_signer}</a>" 
             txn = f"<a href='https://etherscan.io/tx/{TXN}'>TXN</a>"
             dec=int(decimal)
-            print(dec)
-            print(amount1In)
-            print(amount0Out)
+
             usd_value_bought = (float(amount1In)*10**-18) * weth_price_usd
             action = "Buy detected:"
             formatted_number = "{:,.0f}".format(round(amount0Out* 10**-dec,0))
@@ -1432,8 +1478,6 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
     #     print('An error occured ',e)
     except IndexError:
         print('e')
-
-
 async def log_loop(event_filter, poll_interval, context, chat_id,decimal,name,symbol,addr,pair,stop_event):
     try:
         while not stop_event.is_set():
@@ -1962,176 +2006,197 @@ def start_sol_monitoring(token_address, interval, context, chat_id, name, symbol
 
 
 #==========================moonshot ===============================================#
+
+logged_signatures = set()  # Set to store logged signatures
+async def get_data(url,proxy,token_address):
+    headers = {
+                "Content-Type": "application/json"
+            }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getSignaturesForAddress",
+        "params": [
+            token_address,
+            {
+                "limit": 1
+            }
+        ]
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(payload),proxies=proxy)
+    with open('d.json','w')as file:
+        json.dump(response.json(),file,indent=4)
+    return response.json()
+async def get_sec_data(url,proxy,signature):
+    headers = {
+                "Content-Type": "application/json"
+            }
+    payload2 = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTransaction",
+            "params": [
+                signature,
+                {
+                    "encoding": "jsonParsed",
+                    "maxSupportedTransactionVersion": 0
+                }
+            ]
+        }
+    response2 = requests.post(url, headers=headers, data=json.dumps(payload2),proxies=proxy)
+    with open('q.json','w')as file:
+        json.dump(response2.json(),file,indent=4)
+    return response2.json()
+
+
 async def moonshot(token_address, context, chat_id,name , symbol,stop_event):
     prev_signature = None
     while not stop_event.is_set():
+        proxy = random.choice(proxies_list)
         print('moonshot')
-        url = "https://api.mainnet-beta.solana.com"
-
         try:
-            headers = {
-                "Content-Type": "application/json"
-            }
+            url = "https://api.mainnet-beta.solana.com"
 
-            payload = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "getSignaturesForAddress",
-                "params": [
-                    token_address,
-                    {
-                        "limit": 1
-                    }
-                ]
-            }
-            response = requests.post(url, headers=headers, data=json.dumps(payload))
-            signature = response.json()['result'][0]['signature']
-            
-            if signature != prev_signature:
-                payload2 = {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "getTransaction",
-                    "params": [
-                        signature,
-                        {
-                            "encoding": "jsonParsed",
-                            "maxSupportedTransactionVersion": 0
-                        }
-                    ]
-                }
+            gotten_loggs = await get_data(url,proxy,token_address)
+            if gotten_loggs and 'result' in gotten_loggs:
+                for trancs in gotten_loggs['results'][:7]:
+                    signature = trancs[0]['signature']
+                    if signature not in logged_signatures:
+                        logged_signatures.add(signature)
+                        try:
+                            other_logg=get_sec_data(url,proxy,signature)
+                            data = other_logg
+                            messages = data['result']['meta']['logMessages']
+                            parsed = data['result']['meta']['innerInstructions'][0]['instructions'][1:]
 
-                try:
-                    response2 = requests.post(url, headers=headers, data=json.dumps(payload2))
-                    data = response2.json()
-                    messages = data['result']['meta']['logMessages']
-                    parsed = data['result']['meta']['innerInstructions'][0]['instructions'][1:]
+                            if 'Program log: Instruction: Swap' in messages:
+                                new = data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
 
-                    if 'Program log: Instruction: Swap' in messages:
-                        new = data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
+                            elif "Program log: Instruction: Buy" in messages:
+                                signer =  data['result']['transaction']['message']['accountKeys']
+                                data = data['result']['meta']['innerInstructions'][0]['instructions'][:7]
+                                actual_authority = []
+                                sol_amount = 0
+                                token_amount = 0
+                                decimal = 0
+                                for items in signer:
+                                    if items['signer'] == True:
+                                        the_signer = items['pubkey']
+                                for instance in data:
+                                    try:
+                                        info = instance["parsed"]["info"]
+                                        authority = info.get("authority")
+                                        if authority:
+                                            actual_authority.append(authority)
+                                            token_details = info.get("tokenAmount")
+                                            if token_details:
+                                                token_amount = token_details['uiAmount']
+                                                decimal = token_details['decimals']
+                                                
+                                    except KeyError:
+                                        continue
 
-                    elif "Program log: Instruction: Buy" in messages:
-                        signer =  data['result']['transaction']['message']['accountKeys']
-                        data = data['result']['meta']['innerInstructions'][0]['instructions'][:7]
-                        actual_authority = []
-                        sol_amount = 0
-                        token_amount = 0
-                        decimal = 0
-                        for items in signer:
-                            if items['signer'] == True:
-                                the_signer = items['pubkey']
-                        for instance in data:
-                            try:
-                                info = instance["parsed"]["info"]
-                                authority = info.get("authority")
-                                if authority:
-                                    actual_authority.append(authority)
-                                    token_details = info.get("tokenAmount")
-                                    if token_details:
-                                        token_amount = token_details['uiAmount']
-                                        decimal = token_details['decimals']
-                                        
-                            except KeyError:
-                                continue
-
-                        for i in data:
-                            info = i["parsed"]["info"]
-                            try:
-                                if info.get('destination') == actual_authority[-1]:
-                                    lamports = info.get('lamports', 0)
-                                    if lamports:
-                                        sol_amount = lamports * 10 ** -9
-                                        
-                            except KeyError:
-                                continue
-                        # Send the SOL and token amount to the Telegram group
-                        chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
-                        trend_url=f"https://t.me/BSCTRENDING/5431871"
-                        trend=f"<a href='{trend_url}'>Trending</a>"
-                        supply_=get_total_solana_supply(token_address)
-                        res = get_solana_token_price(token_address)
-                        mkt_cap = float(supply_)*float(res)
-                        usd_value_bought = res*token_amount
-                        if sol_amount or token_amount or the_signer:
-                            emoji = get_emoji_from_db(chat_id)
-                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
-                            sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
-                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
-                            buy_step_number = retrieve_group_number(chat_id)
-                            if buy_step_number == None:
-                                buuy = 10
-                            else:
-                                buuy = buy_step_number
-                            calc = int(usd_value_bought/buuy)
-
-                            if chat_id_exists(chat_id):
-                                if emoji:
-                                    message = (
-                                        f"<b> ✅{name}</b> Buy!\n\n"
-                                        f"{emoji*calc}\n"
-                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                        f"👤{sign}|{txn}\n"
-                                        f"🔷${special_format(usd_value_bought)}\n"
-                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                        f"🦎{chart} 🔷{trend}"
-                                    )
-                                else:
-                                    message = (
-                                        f"<b> ✅{name}</b> Buy!\n\n"
-                                        f"{'🟢'*calc}\n"
-                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                        f"👤{sign}|{txn}\n"
-                                        f"🔷${special_format(usd_value_bought)}\n"
-                                        f"MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                        f"🦎{chart} 🔷{trend}"
-                                    )
-
-                            try:
-                                if message:
-                                    media = fetch_media_from_db(chat_id)
-                                    if media:
-                                        file_id, file_type = media
-                                        if file_type == 'photo':
-                                            asyncio.run_coroutine_threadsafe(
-                                                context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
-                                            asyncio.get_event_loop()
-                                                )
-                                        elif file_type == 'gif':
-                                            asyncio.run_coroutine_threadsafe(
-                                                context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
-                                            asyncio.get_event_loop()
-                                                )
+                                for i in data:
+                                    info = i["parsed"]["info"]
+                                    try:
+                                        if info.get('destination') == actual_authority[-1]:
+                                            lamports = info.get('lamports', 0)
+                                            if lamports:
+                                                sol_amount = lamports * 10 ** -9
+                                                
+                                    except KeyError:
+                                        continue
+                                # Send the SOL and token amount to the Telegram group
+                                chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                                trend_url=f"https://t.me/BSCTRENDING/5431871"
+                                trend=f"<a href='{trend_url}'>Trending</a>"
+                                supply_=get_total_solana_supply(token_address)
+                                res = get_solana_token_price(token_address)
+                                mkt_cap = float(supply_)*float(res)
+                                usd_value_bought = res*token_amount
+                                if sol_amount or token_amount or the_signer:
+                                    emoji = get_emoji_from_db(chat_id)
+                                    thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                                    sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                                    txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                                    buy_step_number = retrieve_group_number(chat_id)
+                                    if buy_step_number == None:
+                                        buuy = 10
                                     else:
-                                        print("No media found in the database for this group.")
-                                        asyncio.run_coroutine_threadsafe(
-                                            context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
-                                        asyncio.get_event_loop()
-                                                )
-                            except Exception as e:
-                                print('thise',e)
-                    else:
-                        print('I think it is a failed transaction or sell')
+                                        buuy = buy_step_number
+                                    calc = int(usd_value_bought/buuy)
 
-                except IndexError:
-                    print('Sell transaction detected')
-                prev_signature = signature
-            else:
-                print('No new transactions')
+                                    if chat_id_exists(chat_id):
+                                        if emoji:
+                                            message = (
+                                                f"<b> ✅{name}</b> Buy!\n\n"
+                                                f"{emoji*calc}\n"
+                                                f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                                f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                                f"👤{sign}|{txn}\n"
+                                                f"🔷${special_format(usd_value_bought)}\n"
+                                                f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                                f"🦎{chart} 🔷{trend}"
+                                            )
+                                        else:
+                                            message = (
+                                                f"<b> ✅{name}</b> Buy!\n\n"
+                                                f"{'🟢'*calc}\n"
+                                                f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                                f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                                f"👤{sign}|{txn}\n"
+                                                f"🔷${special_format(usd_value_bought)}\n"
+                                                f"MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                                f"🦎{chart} 🔷{trend}"
+                                            )
+
+                                    try:
+                                        if message:
+                                            media = fetch_media_from_db(chat_id)
+                                            if media:
+                                                file_id, file_type = media
+                                                if file_type == 'photo':
+                                                    asyncio.run_coroutine_threadsafe(
+                                                        context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
+                                                    asyncio.get_event_loop()
+                                                        )
+                                                elif file_type == 'gif':
+                                                    asyncio.run_coroutine_threadsafe(
+                                                        context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
+                                                    asyncio.get_event_loop()
+                                                        )
+                                            else:
+                                                print("No media found in the database for this group.")
+                                                asyncio.run_coroutine_threadsafe(
+                                                    context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
+                                                asyncio.get_event_loop()
+                                                        )
+                                    except Exception as e:
+                                        print('thise',e)
+                            else:
+                                print('I think it is a failed transaction or sell')
+
+                        except IndexError:
+                            print('Sell transaction detected')
+                        prev_signature = signature
+                        await asyncio.sleep(2)  # Wait before retrying
+
+                    else:
+                        print('No new transactions')
 
         except ConnectTimeout:
             print("Connection timed out, retrying...")
-            await asyncio.sleep(5)  # Wait before retrying
+            await asyncio.sleep(2)  # Wait before retrying
 
         except KeyError:
             print('restarting .....')
-            await asyncio.sleep(5)
-            moonshot(token_address,context, chat_id,name , symbol,stop_event)
+            await asyncio.sleep(2)
+            await moonshot(token_address,context, chat_id,name , symbol,stop_event)
         except Exception as e:
             print(f"An error occurred: {e}")
-        
-        await asyncio.sleep(5)  # Adjust the interval as needed
+            await asyncio.sleep(2)  # Adjust the interval as needed
+            await moonshot(token_address,context, chat_id,name , symbol,stop_event)
+
 
 def start_moonshot(token_address, context, chat_id, name, symbol):
     if chat_id not in stop_events:
@@ -2507,7 +2572,6 @@ def start_lunch(token_address,context,chat_id):
     thread = threading.Thread(target=run_in_thread)
     thread.start()
 
-
 # ================================== Dexes ======================================#
 
 api_count = 0
@@ -2519,10 +2583,10 @@ class AxiosInstance:
             'accept': 'application/json'
         })
         self.base_url = base_url
-
+        self.proxies = random.choice(proxies_list)  # Add support for proxies
     def get(self, endpoint):
         try:
-            response = self.session.get(self.base_url + endpoint)
+            response = self.session.get(self.base_url + endpoint,proxies=self.proxies)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -2545,122 +2609,141 @@ def solana_get_token_pools(address, page="1"):
     api_count += 1
     api_limit_wait()
     return axios_instance.get(f"networks/solana/tokens/{address}/pools?page={page}")
+
 def solana_get_last_pools_trades(address):
     global api_count
     api_count += 1
     api_limit_wait()
     return axios_instance.get(f"networks/solana/pools/{address}/trades")
-async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_event):
+
+logged_signatures = set()  # Set to store logged signatures
+cache = {"token_pools": None, "last_updated": 0}  # Cache for token pools
+async def fetch_data(url, proxy):
+    return requests.get(url, proxies=proxy).json()
+async def dexes(pool_address,token_address, context, chat_id,name,symbol,stop_event,cache_expiry=60):
     try:
         prev_resp =None
+        page="1"
         while not stop_event.is_set():
+            proxy = random.choice(proxies_list)
+            get_token_url = f'https://api.geckoterminal.com/api/v2/networks/solana/tokens/{pool_address}/info'
+            get_pools_url = f'https://api.geckoterminal.com/api/v2/networks/solana/tokens/{token_address}/pools?page={page}'
+            get_last_pools_url = f'https://api.geckoterminal.com/api/v2/networks/solana/pools/{pool_address}/trades'
             print('dex is live')
-            last_trades = solana_get_last_pools_trades(pool_address)
-            token_pools = solana_get_token_pools(token_address, page="1")
-            if last_trades:
-                swap_event = last_trades['data'][0]
-                signature = swap_event['attributes']['tx_hash']
-                swap_kind = swap_event['attributes']['kind']
-                the_signer = swap_event['attributes']['tx_from_address']
-
-                if prev_resp != signature:
-                    if swap_kind !='sell':
-                        chart =f"<a href='https://dexscreener.com/solana/{pool_address}'>Chart</a>"
-                        trend_url=f"https://t.me/BSCTRENDING/5431871"
-                        trend=f"<a href='{trend_url}'>Trending</a>"
-                        thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
-                        sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
-                        txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
-                        sol_amount = swap_event['attributes']['from_token_amount']
-                        token_amount = swap_event['attributes']['to_token_amount']
-                        usd_value_bought=float(swap_event['attributes']['volume_in_usd'])
-                        print('buy!!')
-                        mkt_cap = token_pools['data'][-1]['attributes']['market_cap_usd']
-                        fdv = token_pools['data'][-1]['attributes']['fdv_usd']
-                        print(mkt_cap)
-                        print(fdv)
-                        if mkt_cap == None:
-                            mkt_cap = fdv
-                        emoji = get_emoji_from_db(chat_id)
-                        buy_step_number = retrieve_group_number(chat_id)
-                        # print(swap_event)
-                        if buy_step_number == None:
-                            buuy = 10
-                        else:
-                            buuy = buy_step_number
-                        calc = (usd_value_bought/buuy)
-                        calc = int(calc)
-                        if chat_id_exists(chat_id):
-                            if emoji:
-                                message = (
-                                    f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{emoji*calc}\n"
-                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                    f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{sign}|{txn}\n"
-                                    f"🔷${special_format(int(usd_value_bought))}\n"
-                                    f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                    f"🦎{chart} 🔷{trend}"
-                                )
+            last_trades = await fetch_data(get_last_pools_url, proxy)
+            token_pools = await fetch_data(get_pools_url, proxy)
+            if last_trades and 'data' in last_trades:
+                for trade in reversed(last_trades['data'][:7]):
+                    signature = trade['attributes']['tx_hash']
+                    swap_kind = trade['attributes']['kind']
+                    the_signer = trade['attributes']['tx_from_address']
+                    # If this signature hasn't been logged yet
+                    if signature not in logged_signatures:
+                        logged_signatures.add(signature)
+                        if swap_kind != 'sell':
+                            chart = f"<a href='https://dexscreener.com/solana/{pool_address}'>Chart</a>"
+                            trend_url = f"https://t.me/BSCTRENDING/5431871"
+                            trend = f"<a href='{trend_url}'>Trending</a>"
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign = f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>"
+                            txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
+                            
+                            sol_amount = trade['attributes']['from_token_amount']
+                            token_amount = trade['attributes']['to_token_amount']
+                            usd_value_bought = float(trade['attributes']['volume_in_usd'])
+                            if token_pools and 'data' in token_pools:
+                                mkt_cap = token_pools['data'][-1]['attributes']['market_cap_usd']
+                                fdv = token_pools['data'][-1]['attributes']['fdv_usd']
+                                # Log the trade details
+                                # print(f"Trade Details: Signature: {signature}, USD Value: {usd_value_bought}, Market Cap: {mkt_cap}, FDV: {fdv}")
+                            if mkt_cap == None:
+                                mkt_cap = fdv
+                            # print(mkt_cap)
+                            emoji = get_emoji_from_db(chat_id)
+                            buy_step_number = retrieve_group_number(chat_id)
+                            # print(swap_event)
+                            if buy_step_number == None:
+                                buuy = 10
                             else:
-                                message = (
-                                    f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{'🟢'*calc}\n"
-                                    f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                    f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{sign}|{txn}\n"
-                                    f"🔷${special_format(int(usd_value_bought))}\n"
-                                    f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                    f"🦎{chart} 🔷{trend}"
-                                )
-                        if message:
-                            print('hereeeeeeeeeeeeeeeeee')
-                            media = fetch_media_from_db(chat_id)
-                            if media:
-                                print(message)
-                                file_id, file_type = media
-                                if file_type == 'photo':
-                                    print('this')
-
-                                    asyncio.run_coroutine_threadsafe(
-                                        context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
-                                    asyncio.get_event_loop()
-                                        )
-                                elif file_type == 'gif':
-                                    print('ghgh')
-                                    asyncio.run_coroutine_threadsafe(
-                                        context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
-                                    asyncio.get_event_loop()
-                                        )
+                                buuy = buy_step_number
+                            # print(buuy)
+                            calc = (usd_value_bought/buuy)
+                            calc = int(calc)
+                            # print(calc)
+                            if chat_id_exists(chat_id):
+                                if emoji:
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{emoji*calc}\n"
+                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(int(usd_value_bought))}\n"
+                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
                                 else:
-                                    print('idont know')
-                            else:
-                                print("No media found in the database for this group.")
-                                asyncio.run_coroutine_threadsafe(
-                                    context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
-                                asyncio.get_event_loop()
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{'🟢'*calc}\n"
+                                        f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(int(usd_value_bought))}\n"
+                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
+                        
+                            if message:
+                                try:
+                                    media = fetch_media_from_db(chat_id)
+                                    if media:
+                                        # print(message)
+                                        file_id, file_type = media
+                                        if file_type == 'photo':
+                                            asyncio.run_coroutine_threadsafe(
+                                                context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
+                                                asyncio.get_event_loop()
+                                            )
+                                        elif file_type == 'gif':
+                                            asyncio.run_coroutine_threadsafe(
+                                                context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
+                                                asyncio.get_event_loop()
+                                            )
+                                        else:
+                                            print('idont know')
+                                    else:
+                                        # print("No media found in the database for this group.")
+                                        # print(message)
+                                        asyncio.run_coroutine_threadsafe(
+                                            context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
+                                            asyncio.get_event_loop()
                                         )
+                                        # await context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True)
+
+                                except Exception as e:
+                                    print(e)
                     prev_resp = signature
+                    time.sleep(2)
             else:
                 print("Failed to retrieve last pool trades.")   
-            await asyncio.sleep(2)  # Adjust the interval as needed
+            await asyncio.sleep(1)  # Adjust the interval as needed
     except Exception as e:
         print(e)
+        await asyncio.sleep(2)
+        await dexes(pool_address,token_address, context, chat_id,name,symbol,stop_event,cache_expiry=60)
 
 def start_dexes(pool_address,token_address,context, chat_id, name, symbol):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
     stop_event = stop_events[chat_id]
     stop_event.clear()
-
-
     def run_dex_in_thread():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(
             dexes(pool_address,token_address, context, chat_id, name, symbol, stop_event)
         )
-
     # Start the thread
     thread = threading.Thread(target=run_dex_in_thread)
     thread.start()
@@ -2714,107 +2797,116 @@ def get_last_pools_trades(address):
     api_limit_wait()
     return axios_instance.get(f"networks/ton/pools/{address}/trades")
 
-async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_event):
+logged_signatures = set()  # Set to store logged signatures
+cache = {"token_pools": None, "last_updated": 0}  # Cache for token pools
+async def ton_fetch_data(url, proxy):
+    return requests.get(url, proxies=proxy).json()
+async def ton(pool_address,token_address, context, chat_id,name,symbol,stop_event,cache_expiry=60):
     try:
         list_sig = []
         prev_resp =None
+        page="1"
         while not stop_event.is_set():
-            last_trades = get_last_pools_trades(pool_address)
-            token_pools = get_token_pools(token_address, page="1")
-            if last_trades:
-                swap_event = last_trades['data'][0] 
-                signature = swap_event['attributes']['tx_hash']
-                list_sig.append(signature)
-                swap_kind = swap_event['attributes']['kind']
-                the_signer = swap_event['attributes']['tx_from_address']
-                if prev_resp != signature:
-                    if swap_kind !='sell':
-                        chart =f"<a href='https://dexscreener.com/ton/{pool_address}'>Chart</a>"
-                        trend_url=f"https://t.me/BSCTRENDING/5431871"
-                        trend=f"<a href='{trend_url}'>Trending</a>"
-                        thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
-                        sign =f"<a href='https://tonviewer.com/{the_signer}'>{thenew_signer}</a>" 
-                        txn = f"<a href='https://tonviewer.com/transaction/{signature}'>TXN</a>"
-                        ton_amount = swap_event['attributes']['from_token_amount']
-                        token_amount = swap_event['attributes']['to_token_amount']
-                        usd_value_bought=float(swap_event['attributes']['volume_in_usd'])
-                        print('buy!!')
-                        mkt_cap = token_pools['data'][-1]['attributes']['market_cap_usd']
-                        emoji = get_emoji_from_db(chat_id)
-                        buy_step_number = retrieve_group_number(chat_id)
-                        fdv = token_pools['data'][-1]['attributes']['fdv_usd']
-                        # print(swap_event)
-                        if mkt_cap == None:
-                            mkt_cap = fdv
-                        if buy_step_number == None:
-                            buuy = 10
-                        else:
-                            buuy = buy_step_number
-                        calc = (usd_value_bought/buuy)
-                        calc = int(calc)
-
-                        if chat_id_exists(chat_id):
-                            if emoji:
-                                message = (
-                                    f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{emoji*calc}\n"
-                                    f"💵 {special_format(ton_amount)} <b>TON</b>\n"
-                                    f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{sign}|{txn}\n"
-                                    f"🔷${special_format(usd_value_bought)}\n"
-                                    f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                    f"🦎{chart} 🔷{trend}"
-                                )
-
+            proxy = random.choice(proxies_list)
+            ton_get_token_url = f'https://api.geckoterminal.com/api/v2/networks/ton/tokens/{pool_address}/info'
+            ton_get_pools_url = f'https://api.geckoterminal.com/api/v2/networks/ton/tokens/{token_address}/pools?page={page}'
+            ton_get_last_pools_url = f'https://api.geckoterminal.com/api/v2/networks/ton/pools/{pool_address}/trades'
+            last_trades = await ton_fetch_data(ton_get_last_pools_url,proxy)
+            token_pools = await fetch_data(ton_get_pools_url, proxy)
+            if last_trades and 'data' in last_trades:
+                for trade in reversed(last_trades['data'][:7]):
+                    swap_event = last_trades['data'][0] 
+                    signature = trade['attributes']['tx_hash']
+                    # list_sig.append(signature)
+                    swap_kind = trade['attributes']['kind']
+                    the_signer = trade['attributes']['tx_from_address']
+                    if signature not in logged_signatures:
+                        logged_signatures.add(signature)
+                        if swap_kind !='sell':
+                            chart =f"<a href='https://dexscreener.com/ton/{pool_address}'>Chart</a>"
+                            trend_url=f"https://t.me/BSCTRENDING/5431871"
+                            trend=f"<a href='{trend_url}'>Trending</a>"
+                            thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                            sign =f"<a href='https://tonviewer.com/{the_signer}'>{thenew_signer}</a>" 
+                            txn = f"<a href='https://tonviewer.com/transaction/{signature}'>TXN</a>"
+                            ton_amount = swap_event['attributes']['from_token_amount']
+                            token_amount = swap_event['attributes']['to_token_amount']
+                            usd_value_bought=float(swap_event['attributes']['volume_in_usd'])
+                            print('buy!!')
+                            mkt_cap = token_pools['data'][-1]['attributes']['market_cap_usd']
+                            emoji = get_emoji_from_db(chat_id)
+                            buy_step_number = retrieve_group_number(chat_id)
+                            fdv = token_pools['data'][-1]['attributes']['fdv_usd']
+                            # print(swap_event)
+                            if mkt_cap == None:
+                                mkt_cap = fdv
+                            if buy_step_number == None:
+                                buuy = 10
                             else:
-                                message = (
-                                    f"<b> ✅{name}</b> Buy!\n\n"
-                                    f"{'🟢'*calc}\n"
-                                    f"💵 {special_format(ton_amount)} <b>TON</b>\n"
-                                    f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                    f"👤{sign}|{txn}\n"
-                                    f"🔷${special_format(usd_value_bought)}\n"
-                                    f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                    f"🦎{chart} 🔷{trend}"
-                                )
-                            # for i in list_sig:
-                            #     if i!= prev_resp:
-                            #         print(i)
-                            #     prev_resp = i 
-                            if message:
-                                media = fetch_media_from_db(chat_id)
-                                if media:
-                                    file_id, file_type = media
-                                    if file_type == 'photo':
-                                        asyncio.run_coroutine_threadsafe(
-                                            context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
-                                        asyncio.get_event_loop()
-                                            )
-                                    elif file_type == 'gif':
-                                        asyncio.run_coroutine_threadsafe(
-                                            context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
-                                        asyncio.get_event_loop()
-                                            )
+                                buuy = buy_step_number
+                            calc = (usd_value_bought/buuy)
+                            calc = int(calc)
+
+                            if chat_id_exists(chat_id):
+                                if emoji:
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{emoji*calc}\n"
+                                        f"💵 {special_format(ton_amount)} <b>TON</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(usd_value_bought)}\n"
+                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
+
                                 else:
-                                    print("No media found in the database for this group.")
-                                    asyncio.run_coroutine_threadsafe(
-                                        context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
-                                    asyncio.get_event_loop()
-                                            )
-                    prev_resp = signature
+                                    message = (
+                                        f"<b> ✅{name}</b> Buy!\n\n"
+                                        f"{'🟢'*calc}\n"
+                                        f"💵 {special_format(ton_amount)} <b>TON</b>\n"
+                                        f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
+                                        f"👤{sign}|{txn}\n"
+                                        f"🔷${special_format(usd_value_bought)}\n"
+                                        f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
+                                        f"🦎{chart} 🔷{trend}"
+                                    )
+                                if message:
+
+                                    media = fetch_media_from_db(chat_id)
+                                    if media:
+                                        file_id, file_type = media
+                                        if file_type == 'photo':
+                                            asyncio.run_coroutine_threadsafe(
+                                                context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
+                                            asyncio.get_event_loop()
+                                                )
+                                        elif file_type == 'gif':
+                                            asyncio.run_coroutine_threadsafe(
+                                                context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
+                                            asyncio.get_event_loop()
+                                                )
+                                    else:
+                                        print("No media found in the database for this group.")
+                                        asyncio.run_coroutine_threadsafe(
+                                            context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
+                                        asyncio.get_event_loop()
+                                                )
+                        prev_resp = signature
+                        await asyncio.sleep(2)
             else:
                 print("Failed to retrieve last pool trades.")   
-            await asyncio.sleep(3)  # Adjust the interval as needed
+            # await asyncio.sleep(3)  # Adjust the interval as needed
     except Exception as e:
         print(e)
+        await asyncio.sleep(3)
+        await ton(pool_address,token_address, context, chat_id,name,symbol,stop_event,cache_expiry=60)
 
 def start_ton(pool_address,token_address, context, chat_id,name,symbol):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
     stop_event = stop_events[chat_id]
     stop_event.clear()
-
-
     def run_ton_in_thread():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -3109,6 +3201,7 @@ async def another_query(update:Update,context:ContextTypes.DEFAULT_TYPE):
             row9= [btn9]
             reply_markup_pair = InlineKeyboardMarkup([row2,row9])
             await query.edit_message_reply_markup(reply_markup=reply_markup_pair)
+
 async def handle_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_data = context.user_data
     chat_id = update.effective_chat.id
@@ -3239,7 +3332,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                     context.user_data.clear()
                     except Exception as e:
                         print('error ',e)
-                        await context.bot.send_message(chat_id=chat_id, text='An Error Occured type /add to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
+                        await context.bot.send_message(chat_id=chat_id, text='An Error Occured type /addbutton to add a different pair address',parse_mode='HTML',disable_web_page_preview=True)
                         context.user_data.clear()
 
             elif context.user_data['state'] == FOR_BSC:
@@ -3500,7 +3593,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             name = deep_down['name']
                             symbol = deep_down['symbol']
                             decimal = deep_down['decimals']
-                            sol_done=insert_user(chat_id, sol_address,'','ton')
+                            sol_done=insert_user(chat_id, sol_address,'','solana')
                             # sol_db_token = fetch_token_address(chat_id)
                             sol_respnse = (
                                         f"🎯 Escobar is now tracking\n"

@@ -1,0 +1,87 @@
+{
+    "data": [
+        {
+            "id": "solana_7GJYuPF8rgX2dYbyF3AYwFuuniCXAr11Hmb8uPhgBeeq",
+            "type": "pool",
+            "attributes": {
+                "base_token_price_usd": "0.001011816213887012465135530183119998944278183598249336732647812163818150175",
+                "base_token_price_native_currency": "0.000007729311111174853198197",
+                "quote_token_price_usd": "131.437586472734830459127792895659340226904091939477660109",
+                "quote_token_price_native_currency": "1.0",
+                "base_token_price_quote_token": "0.00000773",
+                "quote_token_price_base_token": "129378",
+                "address": "7GJYuPF8rgX2dYbyF3AYwFuuniCXAr11Hmb8uPhgBeeq",
+                "name": "CHIBI / SOL",
+                "pool_created_at": "2024-09-16T10:35:42Z",
+                "token_price_usd": "0.001011816213887012465135530183119998944278183598249336732647812163818150175",
+                "fdv_usd": "1011816",
+                "market_cap_usd": null,
+                "price_change_percentage": {
+                    "m5": "-6.24",
+                    "h1": "0.34",
+                    "h6": "22.01",
+                    "h24": "22.01"
+                },
+                "transactions": {
+                    "m5": {
+                        "buys": 162,
+                        "sells": 46,
+                        "buyers": 162,
+                        "sellers": 46
+                    },
+                    "m15": {
+                        "buys": 900,
+                        "sells": 245,
+                        "buyers": 894,
+                        "sellers": 232
+                    },
+                    "m30": {
+                        "buys": 2077,
+                        "sells": 552,
+                        "buyers": 2062,
+                        "sellers": 421
+                    },
+                    "h1": {
+                        "buys": 4346,
+                        "sells": 1173,
+                        "buyers": 4301,
+                        "sellers": 551
+                    },
+                    "h24": {
+                        "buys": 13899,
+                        "sells": 3721,
+                        "buyers": 13714,
+                        "sellers": 690
+                    }
+                },
+                "volume_usd": {
+                    "m5": "21304.4116730492",
+                    "h1": "524634.632303688",
+                    "h6": "1705782.01791194",
+                    "h24": "1705782.01791194"
+                },
+                "reserve_in_usd": "96398.6588"
+            },
+            "relationships": {
+                "base_token": {
+                    "data": {
+                        "id": "solana_7v9bgWucyYczS4aRwN1AvK3axEymPsDkQkJNP3Ynn53n",
+                        "type": "token"
+                    }
+                },
+                "quote_token": {
+                    "data": {
+                        "id": "solana_So11111111111111111111111111111111111111112",
+                        "type": "token"
+                    }
+                },
+                "dex": {
+                    "data": {
+                        "id": "raydium",
+                        "type": "dex"
+                    }
+                }
+            }
+        }
+    ]
+}
