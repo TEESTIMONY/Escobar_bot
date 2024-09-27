@@ -93,20 +93,20 @@ proxies_list = [
 
 proxy_pool = itertools.cycle(proxies_list)
 # ============== Database ============================#
-db_config = {
-    'user': 'root',
-    'password': PASSWORD_,
-    'host': 'localhost',
-    'database': 'Escobar_bot',
-    
-}
-
 # db_config = {
 #     'user': 'root',
 #     'password': PASSWORD_,
-#     'host': '67.205.191.138',
-#     'database': 'Escobar',
+#     'host': 'localhost',
+#     'database': 'Escobar_bot',
+    
 # }
+
+db_config = {
+    'user': 'root',
+    'password': 'Str0ng!Passw0rd',
+    'host': '67.205.191.138',
+    'database': 'escobar_db',
+}
 
 connection_pool = pooling.MySQLConnectionPool(pool_name="mypool",
                                               pool_size=32,  # Adjust based on your needs
