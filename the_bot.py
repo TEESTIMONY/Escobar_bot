@@ -41,7 +41,7 @@ CG = CoinGeckoAPI()
 cg = CoinGeckoAPI()
 from requests.exceptions import HTTPError
 PASSWORD_ = 'Testimonyalade@2003'
-TOKEN_KEY_= '6717839241:AAEWxg1NVhJSLbe7BeFvu8z2b_hc1OJ-Eso'
+TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
 CLIENT = Client("https://api.mainnet-beta.solana.com")
 RAYDIUM_POOL = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 RAYDIUM_AUTHORITY = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1"
