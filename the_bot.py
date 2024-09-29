@@ -1521,6 +1521,10 @@ async def log_loop(event_filter, poll_interval, context, chat_id,decimal,name,sy
         print('restarting .......')
         await asyncio.sleep(2)
         await log_loop(event_filter,poll_interval, context, chat_id,decimal,name,symbol,addr,pair,stop_event)
+    except Exception as e:
+        print('restarting .......')
+        await asyncio.sleep(2)
+        await log_loop(event_filter,poll_interval, context, chat_id,decimal,name,symbol,addr,pair,stop_event)
 
 def start_logging(event_filter, poll_interval, context, chat_id, decimal, name, symbol, addr, pair):
     # This function will be run in a separate thread
