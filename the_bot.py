@@ -6,7 +6,6 @@ import re
 from web3 import Web3
 import requests
 import time
-import aiomysql
 import threading
 import asyncio
 import mysql.connector
@@ -29,7 +28,6 @@ import base58
 import struct
 import traceback
 import io
-from dotenv import load_dotenv
 import os 
 import json
 import random
@@ -49,7 +47,6 @@ META_DATA_PROGRAM = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 WRAPPED_SOL = "So11111111111111111111111111111111111111112"
 SEND_MEDIA = 'SEND_MEDIA'
 stop_events = {}
-
 
 #======================== proxies ======================================== #
 
@@ -1965,12 +1962,12 @@ async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symb
                     print('No new transactions detected.')  # Optional: Remove or replace with logging if needed
             except (ConnectionError, Timeout) as e:
                 print(f"Restartig ..... ")
-                await asyncio.sleep(3)  # Brief pause before retrying
+                await asyncio.sleep(2)  # Brief pause before retrying
                 await pumpfun(token_address, interval, context, chat_id,stop_event, name,symbol)
                 print('continued')
             except KeyError:
                 print('restarting ...../|')
-                await asyncio.sleep(3)
+                await asyncio.sleep(2)
                 await pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol)
                 print('continued')
 
@@ -1986,7 +1983,7 @@ async def pumpfun(token_address, interval, context, chat_id,stop_event,name,symb
     except Exception as e:
         print('pump',e)
         print(f"Restarting .....g ")
-        await asyncio.sleep(5)  # Brief pause before retrying
+        await asyncio.sleep(3)  # Brief pause before retrying
         await pumpfun(token_address, interval, context, chat_id,stop_event,name,symbol)
     # except IndexError:
     #     print('index')
