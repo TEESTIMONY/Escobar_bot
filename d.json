@@ -2,12 +2,12 @@
     "jsonrpc": "2.0",
     "result": [
         {
-            "blockTime": 1727471412,
+            "blockTime": 1728191272,
             "confirmationStatus": "finalized",
             "err": null,
             "memo": null,
-            "signature": "35LxW2zT8WQWKgfzQSHy5yhStVM18QfJWDVsw3GPggbXMNt6NDyTq2mtDGNTSi3Wnn5drqqQCBb7GNEdwKZHcNEb",
-            "slot": 292371717
+            "signature": "2mgTrcToBJjhbbuHv8PoGqexAZSKR3LnVPNCPYccXP77gTtXteBA9ms1aw9CEFU9xjEgq7ms7rNrEWenDHFhifcQ",
+            "slot": 293980613
         }
     ],
     "id": 1

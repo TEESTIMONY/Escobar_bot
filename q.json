@@ -1,0 +1,109 @@
+{
+    "url": "https://dexscreener.com/solana/9souhtck7dafgywue2hcvtaujlp4i5lcp74gz5caw4un",
+    "chainId": "solana",
+    "dexId": "moonshot",
+    "pairAddress": "5Djvz21HYFBgoPvUn6fTrPXymBVjzXTzgoiXRNk5qmjN",
+    "baseToken": {
+        "address": "9SoUhTCK7DaFgyWue2HCvtAUJLP4i5LCP74gZ5CAW4uN",
+        "name": "Mr. Goxx",
+        "symbol": "MRGOXX"
+    },
+    "quoteToken": {
+        "address": "So11111111111111111111111111111111111111112",
+        "name": "Solana",
+        "symbol": "SOL"
+    },
+    "priceNative": "0.00000003047",
+    "priceUsd": "0.000004348",
+    "txns": {
+        "m5": {
+            "buys": 5,
+            "sells": 23,
+            "total": 28
+        },
+        "h1": {
+            "buys": 18,
+            "sells": 26,
+            "total": 44
+        },
+        "h6": {
+            "buys": 91,
+            "sells": 37,
+            "total": 128
+        },
+        "h24": {
+            "buys": 91,
+            "sells": 37,
+            "total": 128
+        }
+    },
+    "volume": {
+        "m5": {
+            "buys": 611.09,
+            "sell": 10731.82,
+            "total": 11342.91
+        },
+        "h1": {
+            "buys": 1170.74,
+            "sell": 10978.59,
+            "total": 12149.33
+        },
+        "h6": {
+            "buys": 11788.09,
+            "sell": 11539.66,
+            "total": 23327.75
+        },
+        "h24": {
+            "buys": 11788.09,
+            "sell": 11539.66,
+            "total": 23327.75
+        }
+    },
+    "makers": {
+        "m5": {
+            "buyers": 4,
+            "sellers": 23,
+            "total": 24
+        },
+        "h1": {
+            "buyers": 15,
+            "sellers": 26,
+            "total": 35
+        },
+        "h6": {
+            "buyers": 61,
+            "sellers": 37,
+            "total": 75
+        },
+        "h24": {
+            "buyers": 61,
+            "sellers": 37,
+            "total": 75
+        }
+    },
+    "priceChange": {
+        "m5": -90.63,
+        "h1": -90.18,
+        "h6": -38.76,
+        "h24": -38.76
+    },
+    "fdv": 4348.11,
+    "marketCap": 4348.11,
+    "createdAt": 1728184817000,
+    "moonshot": {
+        "progress": 5.65,
+        "creator": "4zGjGvaUr4fN8yUpDednGxnXCyELpVC7dapxkuTP9B4j",
+        "curveType": "LINEAR_V1",
+        "curvePosition": "45240021230410720",
+        "marketcapThreshold": "345000000000"
+    },
+    "profile": {
+        "icon": "https://cdn.dexscreener.com/cms/images/Q6ykONkI2kBZeDtG?width=64&height=64&quality=90",
+        "banner": "https://cdn.dexscreener.com/cms/images/7pPocp6apOhQ_39H?width=600&height=200&quality=90",
+        "links": [
+            "https://mrgoxx.ws",
+            "https://x.com/buymrgoxx"
+        ],
+        "decription": "Mr. Goxx is a famous crypto-trading hamster, known for his ability to outperform Bitcoin, Warren Buffet and the S&P 500 while looking amazingly cute and becoming one of the most popular pets on YouTube.  Mr. Goxx and his crypto hedge fund, Goxx Capital, have been featured on CNN, Forbes, Fortune, BBC, and more!  \r\n\r\nDespite his widespread success, Mr. Goxx has never been one to rest.  Mr. Goxx is extending his crypto trading empire by launching his new meme coin on Moonshot!  Don't miss out on YouTube's most successful crypto pet in his new venture...buy Mr. Goxx!"
+    }
+}

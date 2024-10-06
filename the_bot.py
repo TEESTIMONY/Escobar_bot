@@ -38,7 +38,6 @@ from mysql.connector import pooling
 CG = CoinGeckoAPI()
 cg = CoinGeckoAPI()
 from requests.exceptions import HTTPError
-PASSWORD_ = 'Testimonyalade@2003'
 TOKEN_KEY_= '7388590270:AAERF8VNpxPfj4a4EOjnIm5PD981FIBNEz8'
 CLIENT = Client("https://api.mainnet-beta.solana.com")
 RAYDIUM_POOL = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
@@ -1409,20 +1408,14 @@ def handle_event(event,decimal,name,symbol,addr,pair,chat_id):
         amount1In = args['amount1In']
         amount0Out = args['amount0Out']
         amount1Out = args['amount1Out']
-        # Determine if it's a buy
         if (amount0In < amount0Out) and (amount1In >= amount1Out):  
             current_price_usd = get_token_price(addr,pair)
             weth_price_usd = get_weth_price_in_usd()
             contract = web3.eth.contract(address=addr, abi=CONTRACT_ABI)
-            # Get total supply of the token
             total_supply = Web3.from_wei(contract.functions.totalSupply().call(),'ether')
-            # Define the burn address (commonly used burn address)
             burn_address = '0x0000000000000000000000000000000000000000'
-            # Get burned tokens (balance of the burn address)
             burned_tokens = contract.functions.balanceOf(burn_address).call()
-            # Calculate circulating supply
             circulating_supply = total_supply - burned_tokens
-            # Convert from wei (if needed, depending on token decimals, assuming 18 decimals here)
             circulating_supply_eth = Web3.from_wei(circulating_supply, 'ether')
             MKT_cap= float(circulating_supply) * current_price_usd
             formatted_market_cap = format_market_cap(MKT_cap)
@@ -2007,210 +2000,116 @@ def start_sol_monitoring(token_address, interval, context, chat_id, name, symbol
 
 
 #==========================moonshot ===============================================#
-
-logged_signatures = set()  # Set to store logged signatures
-async def get_data(url,proxy,token_address):
-    headers = {
-                "Content-Type": "application/json"
-            }
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getSignaturesForAddress",
-        "params": [
-            token_address,
-            {
-                "limit": 1
-            }
-        ]
-    }
-    response = requests.post(url, headers=headers, data=json.dumps(payload),proxies=proxy)
-    with open('d.json','w')as file:
-        json.dump(response.json(),file,indent=4)
-    return response.json()
-async def get_sec_data(url,proxy,signature):
-    headers = {
-                "Content-Type": "application/json"
-            }
-    payload2 = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getTransaction",
-            "params": [
-                signature,
-                {
-                    "encoding": "jsonParsed",
-                    "maxSupportedTransactionVersion": 0
-                }
-            ]
-        }
-    response2 = requests.post(url, headers=headers, data=json.dumps(payload2),proxies=proxy)
-    with open('q.json','w')as file:
-        json.dump(response2.json(),file,indent=4)
-    return response2.json()
-
-
-async def moonshot(token_address, context, chat_id,name , symbol,stop_event):
-    prev_signature = None
+def get_moon_mkt_cap(token_address):
+    response = requests.get(
+        f"https://api.moonshot.cc/token/v1/solana/{token_address}",
+        headers={},
+    )
+    data = response.json()['marketCap']
+    return data
+async def get_moonshot_trades(token_address,chat_id,context,symbol,name,stop_event):
+    logged_hash = set()
     while not stop_event.is_set():
-        proxy = random.choice(proxies_list)
-        print('moonshot')
-        try:
-            url = "https://api.mainnet-beta.solana.com"
-
-            gotten_loggs = await get_data(url,proxy,token_address)
-            if gotten_loggs and 'result' in gotten_loggs:
-                for trancs in gotten_loggs['results'][:7]:
-                    signature = trancs[0]['signature']
-                    if signature not in logged_signatures:
-                        logged_signatures.add(signature)
-                        try:
-                            other_logg=get_sec_data(url,proxy,signature)
-                            data = other_logg
-                            messages = data['result']['meta']['logMessages']
-                            parsed = data['result']['meta']['innerInstructions'][0]['instructions'][1:]
-
-                            if 'Program log: Instruction: Swap' in messages:
-                                new = data['result']['meta']['innerInstructions'][1]['instructions'][3:7]
-
-                            elif "Program log: Instruction: Buy" in messages:
-                                signer =  data['result']['transaction']['message']['accountKeys']
-                                data = data['result']['meta']['innerInstructions'][0]['instructions'][:7]
-                                actual_authority = []
-                                sol_amount = 0
-                                token_amount = 0
-                                decimal = 0
-                                for items in signer:
-                                    if items['signer'] == True:
-                                        the_signer = items['pubkey']
-                                for instance in data:
-                                    try:
-                                        info = instance["parsed"]["info"]
-                                        authority = info.get("authority")
-                                        if authority:
-                                            actual_authority.append(authority)
-                                            token_details = info.get("tokenAmount")
-                                            if token_details:
-                                                token_amount = token_details['uiAmount']
-                                                decimal = token_details['decimals']
-                                                
-                                    except KeyError:
-                                        continue
-
-                                for i in data:
-                                    info = i["parsed"]["info"]
-                                    try:
-                                        if info.get('destination') == actual_authority[-1]:
-                                            lamports = info.get('lamports', 0)
-                                            if lamports:
-                                                sol_amount = lamports * 10 ** -9
-                                                
-                                    except KeyError:
-                                        continue
-                                # Send the SOL and token amount to the Telegram group
-                                chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
-                                trend_url=f"https://t.me/BSCTRENDING/5431871"
-                                trend=f"<a href='{trend_url}'>Trending</a>"
-                                supply_=get_total_solana_supply(token_address)
-                                res = get_solana_token_price(token_address)
-                                mkt_cap = float(supply_)*float(res)
-                                usd_value_bought = res*token_amount
-                                if sol_amount or token_amount or the_signer:
-                                    emoji = get_emoji_from_db(chat_id)
-                                    thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
-                                    sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
-                                    txn = f"<a href='https://solscan.io/tx/{signature}'>TXN</a>"
-                                    buy_step_number = retrieve_group_number(chat_id)
-                                    if buy_step_number == None:
-                                        buuy = 10
-                                    else:
-                                        buuy = buy_step_number
-                                    calc = int(usd_value_bought/buuy)
-
-                                    if chat_id_exists(chat_id):
-                                        if emoji:
-                                            message = (
-                                                f"<b> ✅{name}</b> Buy!\n\n"
-                                                f"{emoji*calc}\n"
-                                                f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                                f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                                f"👤{sign}|{txn}\n"
-                                                f"🔷${special_format(usd_value_bought)}\n"
-                                                f"🧢MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                                f"🦎{chart} 🔷{trend}"
-                                            )
-                                        else:
-                                            message = (
-                                                f"<b> ✅{name}</b> Buy!\n\n"
-                                                f"{'🟢'*calc}\n"
-                                                f"💵 {special_format(sol_amount)} <b>SOL</b>\n"
-                                                f"🪙{special_format(token_amount)} <b>{symbol}</b>\n"
-                                                f"👤{sign}|{txn}\n"
-                                                f"🔷${special_format(usd_value_bought)}\n"
-                                                f"MKT Cap : ${special_format(mkt_cap)}\n\n"
-                                                f"🦎{chart} 🔷{trend}"
-                                            )
-
-                                    try:
-                                        if message:
-                                            media = fetch_media_from_db(chat_id)
-                                            if media:
-                                                file_id, file_type = media
-                                                if file_type == 'photo':
-                                                    asyncio.run_coroutine_threadsafe(
-                                                        context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
-                                                    asyncio.get_event_loop()
-                                                        )
-                                                elif file_type == 'gif':
-                                                    asyncio.run_coroutine_threadsafe(
-                                                        context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
-                                                    asyncio.get_event_loop()
-                                                        )
-                                            else:
-                                                print("No media found in the database for this group.")
-                                                asyncio.run_coroutine_threadsafe(
-                                                    context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
-                                                asyncio.get_event_loop()
-                                                        )
-                                    except Exception as e:
-                                        print('thise',e)
-                            else:
-                                print('I think it is a failed transaction or sell')
-
-                        except IndexError:
-                            print('Sell transaction detected')
-                        prev_signature = signature
-                        await asyncio.sleep(2)  # Wait before retrying
-
+        response = requests.get(
+            f"https://api.moonshot.cc/trades/v1/latest/solana/{token_address}",
+            headers={},
+        )
+        datas = response.json()[:3]
+        for data in reversed(datas):
+            txn_hash = data['txnId']
+            if txn_hash not in logged_hash:
+                activity_type =data['type']
+                logged_hash.add(txn_hash)
+                if activity_type =='buy':
+                    token_amount = data['amount0']
+                    sol_Amount = data['amount1']
+                    price_in_usd = data['volumeUsd']
+                    the_signer = data['maker']
+                    chart =f"<a href='https://dexscreener.com/solana/{token_address}'>Chart</a>"
+                    trend_url=f"https://t.me/BSCTRENDING/5431871"
+                    trend=f"<a href='{trend_url}'>Trending</a>"
+                    txn = f"<a href='https://solscan.io/tx/{txn_hash}'>TXN</a>"
+                    thenew_signer = f"{the_signer[:7]}...{the_signer[-4:]}"
+                    sign =f"<a href='https://solscan.io/account/{the_signer}'>{thenew_signer}</a>" 
+                    emoji = get_emoji_from_db(chat_id)
+                    buy_step_number = retrieve_group_number(chat_id)
+                    # usd_value_bought = sol_Amount *float(retrieve_solana_price_from_db()['price'])
+                    if buy_step_number == None:
+                        buuy = 10
                     else:
-                        print('No new transactions')
+                        buuy = buy_step_number
+                    calc = int(float(price_in_usd)/buuy)
+                    try:
+                        mkt_cap = special_format(float(get_moon_mkt_cap(token_address)))
+                    except Exception as e:
+                        mkt_cap ='N/A'
+                    if chat_id_exists(chat_id):
+                        if emoji:
+                            message = (
+                                f"<b> ✅{name}</b> Buy!\n\n"
+                                f"{emoji*calc}\n"
+                                f"💵 {special_format(float(sol_Amount))} <b>SOL</b>\n"
+                                f"🪙{special_format(float(token_amount))} <b>{symbol}</b>\n"
+                                f"👤{sign}|{txn}\n"
+                                f"🔷${special_format(float(price_in_usd))}\n"
+                                f"MKT Cap : ${mkt_cap}\n\n"
 
-        except ConnectTimeout:
-            print("Connection timed out, retrying...")
-            await asyncio.sleep(2)  # Wait before retrying
+                                f"🦎{chart} 🔷{trend}"
+                            )
+                        else:
+                            message = (
+                                f"<b> ✅{name}</b> Buy!\n\n"
+                                f"{'🟢'*calc}\n"
+                                f"💵 {special_format(float(sol_Amount))} <b>SOL</b>\n"
+                                f"🪙{special_format(float(token_amount))} <b>{symbol}</b>\n"
+                                f"👤{sign}|{txn}\n"
+                                f"🔷${special_format(float(price_in_usd))}\n"
+                                f"MKT Cap : ${mkt_cap}\n\n"
+                                f"🦎{chart} 🔷{trend}"
+                            )
+                        try:
+                            if message:
+                                print(message)
+                                media = fetch_media_from_db(chat_id)
+                                if media:
+                                    print('yes')
+                                    file_id, file_type = media
+                                    if file_type == 'photo':
+                                        asyncio.run_coroutine_threadsafe(
+                                            context.bot.send_photo(chat_id=chat_id, photo=file_id,caption=message,parse_mode='HTML'),
+                                        asyncio.get_event_loop()
+                                            )
+                                    elif file_type == 'gif':
+                                        asyncio.run_coroutine_threadsafe(
+                                            context.bot.send_document(chat_id=chat_id, document=file_id,caption = message,parse_mode='HTML'),
+                                        asyncio.get_event_loop()
+                                            )
+                                else:
+                                    print("No media found in the database for this group.")
+                                    asyncio.run_coroutine_threadsafe(
+                                        context.bot.send_message(chat_id=chat_id, text=message,parse_mode='HTML',disable_web_page_preview=True),
+                                    asyncio.get_event_loop()
+                                            )
+                        except Exception as e:
+                            print(e)
+            else:
+                print('already logged')
+            await asyncio.sleep(3)
+            
 
-        except KeyError:
-            print('restarting .....')
-            await asyncio.sleep(2)
-            await moonshot(token_address,context, chat_id,name , symbol,stop_event)
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            await asyncio.sleep(2)  # Adjust the interval as needed
-            await moonshot(token_address,context, chat_id,name , symbol,stop_event)
-
-
-def start_moonshot(token_address, context, chat_id, name, symbol):
+        # with open('q.json','w')as file:
+        #     json.dump(datas,file,indent=4)
+def start_moonshot(token_address,  chat_id,context,symbol,name):
     if chat_id not in stop_events:
         stop_events[chat_id] = asyncio.Event()
     stop_event = stop_events[chat_id]
     stop_event.clear()
-
     # Function to run the asyncio loop in a separate thread
     def run_in_thread():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(
-            moonshot(token_address, context, chat_id, name, symbol, stop_event)
+            get_moonshot_trades(token_address, chat_id, context, symbol, name, stop_event)
         )
 
     # Start the thread
@@ -3518,8 +3417,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                             '🛠 Settings Menu:',
                             reply_markup=reply_markup_pair
                         )
-                    
-                        start_moonshot(solana_address,context,chat_id,sol_name,sol_symbol)
+                        start_moonshot(solana_address,chat_id,context,sol_symbol,sol_name)
                         context.user_data.clear()
                 except Exception as e:
                     # await context.bot.send_message(chat_id=chat_id, text='Invalid Token address',parse_mode='HTML',disable_web_page_preview=True)
